@@ -1,0 +1,1215 @@
+<title>Smith Chart Tuner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:            #12151a;
+    --panel:         #1b2028;
+    --panel-raised:  #232a34;
+    --well:          #171c23;
+    --line:          #2c3542;
+    --line-strong:   #3a4453;
+    --ink:           #e9edf3;
+    --ink-secondary: #98a5b6;
+    --ink-muted:     #5b6572;
+    --amber:         #ff9d52;
+    --amber-dim:     #8a5a34;
+    --cyan:          #55e0cf;
+    --cyan-dim:      #2f6b64;
+    --good:          #4ade80;
+    --warn:          #fbbf24;
+    --crit:          #f9695a;
+  }
+
+  *{ box-sizing:border-box; }
+  html{ color-scheme: dark; }
+
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+    padding: 28px 16px 64px;
+  }
+
+  ::selection{ background:var(--amber-dim); color:var(--ink); }
+
+  a{ color:var(--cyan); }
+
+  .wrap{
+    max-width:1680px;
+    margin:0 auto;
+    display:flex;
+    flex-direction:column;
+    gap:28px;
+  }
+
+  /* ---------- header ---------- */
+  .masthead{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    border-bottom:1px solid var(--line);
+    padding-bottom:20px;
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--amber);
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:8px; height:8px; border-radius:50%;
+    background:var(--amber);
+    box-shadow:0 0 8px 1px var(--amber);
+  }
+  h1{
+    margin:0;
+    font-size:clamp(26px,3.6vw,38px);
+    font-weight:600;
+    letter-spacing:-.01em;
+    text-wrap:balance;
+  }
+  .dek{
+    margin:0;
+    max-width:70ch;
+    color:var(--ink-secondary);
+    font-size:15.5px;
+    line-height:1.6;
+  }
+  .masthead-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  .drag-hint{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    color:var(--ink-muted);
+    letter-spacing:.02em;
+    white-space:nowrap;
+  }
+
+  /* ---------- layout: draggable dashboard grid ---------- */
+  .dashboard{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(320px,1fr));
+    grid-auto-flow:dense;
+    gap:22px;
+    align-items:start;
+  }
+  .panel.span2{ grid-column:span 2; }
+  @media (max-width:680px){
+    .panel.span2{ grid-column:span 1; }
+  }
+
+  .module{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:20px;
+    display:flex;
+    flex-direction:column;
+    gap:18px;
+  }
+  .module__head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding-bottom:12px;
+    border-bottom:1px solid var(--line);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--ink-secondary);
+    cursor:grab;
+    touch-action:none;
+  }
+  .module__head:active{ cursor:grabbing; }
+  .module__head b{ color:var(--ink); font-weight:600; }
+  .module__head > span:first-child{
+    display:inline-flex;
+    align-items:center;
+    gap:9px;
+  }
+  .grip{
+    flex:none;
+    width:12px; height:16px;
+    background-image:radial-gradient(circle, var(--ink-muted) 1.2px, transparent 1.3px);
+    background-size:6px 6px;
+    opacity:.65;
+  }
+
+  /* ---------- drag-to-reorder feedback ---------- */
+  .panel--source{ opacity:.32; }
+  .panel--drop-before{ box-shadow: inset 3px 0 0 0 var(--amber); }
+  .panel--drop-after{ box-shadow: inset -3px 0 0 0 var(--amber); }
+  .drag-ghost{
+    position:fixed;
+    top:0; left:0;
+    margin:0;
+    z-index:999;
+    pointer-events:none;
+    box-shadow:0 18px 40px rgba(0,0,0,.5), 0 0 0 1px var(--amber);
+    opacity:.96;
+    cursor:grabbing;
+  }
+
+  .stack{ display:flex; flex-direction:column; gap:14px; }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:420px){ .row2{ grid-template-columns:1fr; } }
+
+  label.field{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    font-size:12.5px;
+    color:var(--ink-secondary);
+  }
+  label.field .val{
+    font-family:'IBM Plex Mono', monospace;
+    color:var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .field-top{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .field-top .name{ text-transform:uppercase; letter-spacing:.06em; font-size:11.5px; }
+  .subval{ color:var(--ink-muted); font-size:11px; }
+
+  select, .btn{
+    font-family:'IBM Plex Sans', sans-serif;
+    font-size:13.5px;
+    background:var(--well);
+    color:var(--ink);
+    border:1px solid var(--line-strong);
+    border-radius:7px;
+    padding:9px 12px;
+  }
+  select:focus-visible, .btn:focus-visible, input:focus-visible{
+    outline:2px solid var(--amber);
+    outline-offset:2px;
+  }
+
+  input[type="range"]{
+    -webkit-appearance:none;
+    appearance:none;
+    width:100%;
+    height:22px;
+    background:transparent;
+  }
+  input[type="range"]::-webkit-slider-runnable-track{
+    height:5px; border-radius:3px; background:var(--well); border:1px solid var(--line-strong);
+  }
+  input[type="range"]::-moz-range-track{
+    height:5px; border-radius:3px; background:var(--well); border:1px solid var(--line-strong);
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:16px; height:16px; margin-top:-6px;
+    border-radius:50%;
+    background:var(--amber);
+    border:2px solid #1b2028;
+    box-shadow:0 0 0 1px var(--amber);
+    cursor:pointer;
+  }
+  input[type="range"]::-moz-range-thumb{
+    width:14px; height:14px; border-radius:50%;
+    background:var(--amber); border:2px solid #1b2028;
+    box-shadow:0 0 0 1px var(--amber);
+    cursor:pointer;
+  }
+
+  .btnrow{ display:flex; gap:10px; flex-wrap:wrap; }
+  .btn{ cursor:pointer; transition:border-color .15s, color .15s; }
+  .btn:hover{ border-color:var(--amber); color:var(--amber); }
+  .btn.primary{ background:var(--amber); border-color:var(--amber); color:#1b120a; font-weight:600; }
+  .btn.primary:hover{ color:#1b120a; filter:brightness(1.08); }
+  .btn.ghost{ background:transparent; }
+
+  .toggle{
+    display:flex;
+    border:1px solid var(--line-strong);
+    border-radius:8px;
+    overflow:hidden;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+  }
+  .toggle button{
+    flex:1;
+    background:var(--well);
+    color:var(--ink-secondary);
+    border:none;
+    padding:9px 6px;
+    cursor:pointer;
+    letter-spacing:.02em;
+  }
+  .toggle button.active{ background:var(--amber-dim); color:var(--ink); }
+  .toggle button + button{ border-left:1px solid var(--line-strong); }
+
+  .flowline{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--ink-muted);
+    letter-spacing:.02em;
+  }
+  .flowline span{ color:var(--cyan); }
+  .flowline b{ color:var(--amber); font-weight:600; }
+
+  .status-note{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    color:var(--ink-muted);
+    min-height:14px;
+  }
+
+  /* ---------- gauge ---------- */
+  .gauge-wrap{ display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .readout{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    margin-top:-6px;
+  }
+  .readout .num{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:44px;
+    font-weight:600;
+    color:var(--amber);
+    font-variant-numeric: tabular-nums;
+    line-height:1;
+  }
+  .readout .label{ font-size:12px; color:var(--ink-muted); text-transform:uppercase; letter-spacing:.1em; }
+  .pill{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    padding:4px 10px;
+    border-radius:100px;
+    border:1px solid currentColor;
+    display:inline-block;
+  }
+
+  .powerbars{ display:flex; flex-direction:column; gap:8px; width:100%; }
+  .powerbar{ display:flex; flex-direction:column; gap:4px; }
+  .powerbar .pb-top{ display:flex; justify-content:space-between; font-size:11px; color:var(--ink-muted); font-family:'IBM Plex Mono',monospace; }
+  .pb-track{ height:8px; background:var(--well); border-radius:4px; border:1px solid var(--line); overflow:hidden; }
+  .pb-fill{ height:100%; border-radius:4px 0 0 4px; }
+
+  /* ---------- readout strip ---------- */
+  .strip{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:10px 18px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+  }
+  .strip .k{ color:var(--ink-muted); }
+  .strip .v{ color:var(--ink); font-variant-numeric: tabular-nums; }
+
+  /* ---------- smith chart ---------- */
+  .chart-card{ display:flex; flex-direction:column; gap:12px; }
+  .chart-svg-wrap{ width:100%; max-width:640px; margin:0 auto; }
+  svg{ display:block; width:100%; height:auto; }
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    font-size:12px;
+    color:var(--ink-secondary);
+    font-family:'IBM Plex Mono', monospace;
+  }
+  .legend .item{ display:flex; align-items:center; gap:7px; }
+  .swatch{ width:16px; height:3px; border-radius:2px; display:inline-block; }
+  .dot-sw{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+
+  /* ---------- oscilloscope panels ---------- */
+  .scopes{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
+  }
+  @media (max-width:640px){ .scopes{ grid-template-columns:1fr; } }
+  .scope-panel{
+    background:var(--well);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:14px 16px 12px;
+  }
+  .scope-label{ font-size:13px; color:var(--ink); margin-bottom:8px; }
+  .scope-sub{ color:var(--ink-muted); font-size:11.5px; }
+  .scope-svg{ width:100%; height:auto; display:block; }
+  .scope-cap{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--ink-muted);
+    margin-top:8px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- prose / explainer panels ---------- */
+  .prose h2{
+    font-size:19px;
+    margin:0 0 10px;
+    font-weight:600;
+  }
+  .prose p{
+    margin:0 0 12px;
+    color:var(--ink-secondary);
+    font-size:15px;
+    line-height:1.68;
+  }
+  .prose p:last-child{ margin-bottom:0; }
+  .prose strong{ color:var(--ink); font-weight:600; }
+  .foot-note{
+    font-size:12px;
+    color:var(--ink-muted);
+    margin-top:14px;
+  }
+  .module.callout{
+    background:var(--well);
+    border-left:3px solid var(--warn);
+  }
+  .module.callout .module__head span:last-child{ color:var(--warn); }
+  .callout-text{
+    font-size:14px;
+    line-height:1.62;
+    color:var(--ink-secondary);
+    margin:0;
+  }
+  .callout-text em{ color:var(--ink); font-style:italic; }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ transition:none !important; animation:none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="masthead-row">
+      <div class="eyebrow">RF Impedance Matching Bench</div>
+      <button class="btn ghost" id="resetLayoutBtn" title="Restore the default panel order">Reset layout</button>
+    </div>
+    <h1>Smith Chart Tuner</h1>
+    <p class="dek">Drag the tuner's series and shunt elements and watch the transmitter's SWR meter — and the matching point on the Smith chart — respond in real time. Every needle deflection here is a specific point on that chart.</p>
+    <span class="drag-hint">Drag any panel's header to rearrange the bench — your layout is remembered.</span>
+  </header>
+
+  <div class="dashboard" id="dashboard">
+
+      <div class="module panel" data-panel="meter">
+        <div class="module__head"><span><span class="grip" aria-hidden="true"></span>Transmitter</span><b id="freqHeadLabel">14.000 MHz</b></div>
+
+        <div class="gauge-wrap">
+          <svg id="gaugeSvg" viewBox="0 0 300 190" aria-label="SWR meter">
+            <g id="gaugeTrack"></g>
+            <g id="gaugeTicks"></g>
+            <line id="needle" x1="150" y1="168" x2="150" y2="48" stroke="var(--amber)" stroke-width="2.6" stroke-linecap="round" filter="url(#glow)"/>
+            <circle cx="150" cy="168" r="7" fill="var(--panel-raised)" stroke="var(--amber)" stroke-width="2"/>
+            <defs>
+              <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="2.1" result="b"/>
+                <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+          </svg>
+          <div class="readout">
+            <span class="num" id="swrNum">—</span>
+            <span class="label">VSWR</span>
+          </div>
+          <span class="pill" id="statusPill">—</span>
+        </div>
+
+        <div class="powerbars">
+          <div class="powerbar">
+            <div class="pb-top"><span>Forward — 100 W assumed carrier</span><span id="fwdVal">100 W</span></div>
+            <div class="pb-track"><div class="pb-fill" id="fwdFill" style="width:100%; background:var(--cyan);"></div></div>
+          </div>
+          <div class="powerbar">
+            <div class="pb-top"><span>Reflected</span><span id="refVal">0 W</span></div>
+            <div class="pb-track"><div class="pb-fill" id="refFill" style="width:0%; background:var(--crit);"></div></div>
+          </div>
+        </div>
+
+        <div class="strip" id="numStrip"></div>
+      </div>
+
+      <div class="module panel" data-panel="antenna">
+        <div class="module__head"><span><span class="grip" aria-hidden="true"></span>Antenna &amp; Frequency</span></div>
+        <div class="stack">
+          <label class="field">
+            <div class="field-top"><span class="name">Load preset</span></div>
+            <select id="presetSelect"></select>
+            <span class="subval" id="presetSub"></span>
+          </label>
+          <label class="field">
+            <div class="field-top"><span class="name">Frequency</span><span class="val" id="freqVal">14.000 MHz</span></div>
+            <input type="range" id="freqSlider" min="1.8" max="30" step="0.01" value="14.0">
+          </label>
+          <div class="strip">
+            <span class="k">Z<sub>load</sub></span><span class="v" id="zLoadVal">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="module panel" data-panel="tuner">
+        <div class="module__head"><span><span class="grip" aria-hidden="true"></span>Antenna Tuner (L-network)</span></div>
+        <div class="stack">
+          <div class="field">
+            <div class="field-top"><span class="name">Signal path</span></div>
+            <div class="toggle" id="topoToggle">
+              <button data-topo="seriesFirst">Series → Shunt</button>
+              <button data-topo="shuntFirst">Shunt → Series</button>
+            </div>
+            <div class="flowline" id="flowLine"></div>
+          </div>
+
+          <label class="field">
+            <div class="field-top"><span class="name">Series element</span><span class="val" id="xsVal">0 Ω</span></div>
+            <input type="range" id="xsSlider" min="-1500" max="1500" step="2" value="0">
+            <span class="subval" id="xsComp">bypassed</span>
+          </label>
+
+          <label class="field">
+            <div class="field-top"><span class="name">Shunt element</span><span class="val" id="bpVal">0 mS</span></div>
+            <input type="range" id="bpSlider" min="-40" max="40" step="0.2" value="0">
+            <span class="subval" id="bpComp">bypassed</span>
+          </label>
+
+          <div class="btnrow">
+            <button class="btn primary" id="autoTuneBtn">Auto-Tune</button>
+            <button class="btn ghost" id="bypassBtn">Bypass (0, 0)</button>
+          </div>
+          <div class="status-note" id="tuneStatus"></div>
+        </div>
+      </div>
+
+    <div class="module panel chart-card span2" data-panel="chart">
+      <div class="module__head"><span><span class="grip" aria-hidden="true"></span>Smith Chart</span><b>Normalized to Z₀ = 50 Ω</b></div>
+      <div class="chart-svg-wrap">
+        <svg id="smithSvg" viewBox="0 0 640 640" role="img" aria-label="Smith chart showing load and matched impedance points"></svg>
+      </div>
+      <div class="legend">
+        <span class="item"><span class="dot-sw" style="background:var(--ink)"></span>Antenna (load)</span>
+        <span class="item"><span class="swatch" style="background:var(--cyan)"></span>Series step — moves along constant R</span>
+        <span class="item"><span class="swatch" style="background:var(--amber)"></span>Shunt step — moves along constant G</span>
+        <span class="item"><span class="dot-sw" style="background:var(--amber); box-shadow:0 0 6px var(--amber);"></span>What the transmitter sees</span>
+      </div>
+    </div>
+
+    <div class="module panel span2" data-panel="waves">
+      <div class="module__head"><span><span class="grip" aria-hidden="true"></span>Forward &amp; Reflected Waves</span><b>Same instant, two reference planes</b></div>
+      <div class="scopes">
+        <div class="scope-panel">
+          <div class="scope-label">At the antenna <span class="scope-sub">— before the tuner</span></div>
+          <svg class="scope-svg" id="scopeLoad" viewBox="0 0 420 150" role="img" aria-label="Forward and reflected waveforms at the antenna"></svg>
+          <div class="scope-cap" id="scopeLoadCap"></div>
+        </div>
+        <div class="scope-panel">
+          <div class="scope-label">At the transmitter <span class="scope-sub">— after the tuner</span></div>
+          <svg class="scope-svg" id="scopeIn" viewBox="0 0 420 150" role="img" aria-label="Forward and reflected waveforms at the transmitter"></svg>
+          <div class="scope-cap" id="scopeInCap"></div>
+        </div>
+      </div>
+      <div class="legend">
+        <span class="item"><span class="swatch" style="background:var(--ink)"></span>Forward (sent)</span>
+        <span class="item"><span class="swatch" style="background:var(--crit)"></span>Reflected</span>
+        <span class="item"><span class="swatch" style="background:var(--cyan); opacity:.75"></span>Combined — what a probe at that point reads</span>
+      </div>
+    </div>
+
+    <div class="module panel prose" data-panel="explain">
+      <div class="module__head"><span><span class="grip" aria-hidden="true"></span>Explainer</span><b>Physical meaning</b></div>
+      <h2>What the chart is actually showing</h2>
+      <p>The Smith chart is a polar plot of the complex reflection coefficient <strong>Γ = (Z − Z₀) / (Z + Z₀)</strong>, redrawn with a grid of impedance instead of raw numbers. Every point inside the outer rim <em>is</em> an impedance: the curved grid lines are circles of constant resistance and arcs of constant reactance, so reading a point's position off the grid tells you R and X directly. The rim itself is <strong>|Γ| = 1</strong> — total reflection, as seen by a dead short or a wide-open circuit. The exact center is <strong>Γ = 0</strong>: the load equals Z₀, nothing reflects, and the meter reads a flat 1.0.</p>
+      <p>The two tuner controls are two different ways of moving across that grid. A <strong>series reactance</strong> only changes X and leaves R untouched, so it slides your point along one of the cyan <strong>constant-resistance</strong> circles. A <strong>shunt susceptance</strong> only changes conductance, so — in the impedance chart shown here — it slides you along one of the amber <strong>constant-conductance</strong> circles instead. Chain one of each, in either order, and you can reach the center from almost any starting point: that's the whole reason a two-element L-network can match nearly any real-world antenna.</p>
+      <p class="foot-note">Feedpoint impedances for the presets are simplified, illustrative curves — not measured antenna data.</p>
+    </div>
+
+    <div class="module panel callout" data-panel="callout">
+      <div class="module__head"><span><span class="grip" aria-hidden="true"></span>Field Note</span><span>Feedline caveat</span></div>
+      <p class="callout-text">The tuner sits at the transmitter end of the cable. Tuning it only forces the impedance <em>at that end</em> back to 50 Ω, which is what the SWR meter is reading. The mismatch — and the standing waves — between the tuner and the antenna itself are completely unchanged; a lossy line still burns extra power in those standing waves no matter how nicely this meter reads. An antenna tuner protects your transmitter, it doesn't repair your antenna.</p>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const Z0 = 50;
+
+  // ---------------- complex / smith helpers ----------------
+  function smithGamma(r,x){
+    const D = (r+1)*(r+1) + x*x;
+    return { re:(r*r + x*x - 1)/D, im:(2*x)/D };
+  }
+  function gammaFromZ(Z, z0){
+    const D = (Z.R+z0)*(Z.R+z0) + Z.X*Z.X || 1e-9;
+    return { re:(Z.R*Z.R - z0*z0 + Z.X*Z.X)/D, im:(2*z0*Z.X)/D };
+  }
+  function zToY(Z){
+    const D = Z.R*Z.R + Z.X*Z.X || 1e-9;
+    return { G:Z.R/D, B:-Z.X/D };
+  }
+  function yToZ(Y){
+    const D = Y.G*Y.G + Y.B*Y.B || 1e-9;
+    return { R:Y.G/D, X:-Y.B/D };
+  }
+  function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
+
+  // ---------------- presets ----------------
+  const PRESETS = [
+    { key:'dipole', name:'Resonant dipole (40 m)', R0:72, f0:7.15, slope:35, note:'Classic half-wave dipole; near-resistive right at resonance.' },
+    { key:'whip',   name:'Short mobile whip (75 m)', R0:15, f0:3.8, slope:90, note:'Physically short vertical — low R, swings reactive fast.' },
+    { key:'endfed', name:'End-fed long wire', R0:800, f0:10.1, slope:250, note:'High-impedance end-fed wire; needs real tuner range.' },
+    { key:'dummy',  name:'50 Ω reference load', R0:50, f0:14.0, slope:0, note:'Already matched — watch the tuner make it worse.' },
+  ];
+
+  function loadZ(preset, freqMHz){
+    const df = freqMHz - preset.f0;
+    let R = preset.R0 * (1 + 0.018*df*df);
+    let X = preset.slope * df;
+    R = clamp(R, 2, 1600);
+    X = clamp(X, -1300, 1300);
+    return { R, X };
+  }
+
+  // ---------------- state ----------------
+  const state = {
+    presetKey:'dipole',
+    freq:7.15,
+    topology:'seriesFirst',
+    Xs:0,
+    Bp:0, // siemens
+  };
+
+  // ---------------- DOM refs ----------------
+  const presetSelect = document.getElementById('presetSelect');
+  const presetSub = document.getElementById('presetSub');
+  const freqSlider = document.getElementById('freqSlider');
+  const freqVal = document.getElementById('freqVal');
+  const freqHeadLabel = document.getElementById('freqHeadLabel');
+  const xsSlider = document.getElementById('xsSlider');
+  const bpSlider = document.getElementById('bpSlider');
+  const xsVal = document.getElementById('xsVal');
+  const bpVal = document.getElementById('bpVal');
+  const xsComp = document.getElementById('xsComp');
+  const bpComp = document.getElementById('bpComp');
+  const topoToggle = document.getElementById('topoToggle');
+  const flowLine = document.getElementById('flowLine');
+  const tuneStatus = document.getElementById('tuneStatus');
+  const zLoadVal = document.getElementById('zLoadVal');
+  const numStrip = document.getElementById('numStrip');
+  const swrNum = document.getElementById('swrNum');
+  const statusPill = document.getElementById('statusPill');
+  const fwdVal = document.getElementById('fwdVal');
+  const refVal = document.getElementById('refVal');
+  const refFill = document.getElementById('refFill');
+  const scopeLoadSvg = document.getElementById('scopeLoad');
+  const scopeInSvg = document.getElementById('scopeIn');
+  const scopeLoadCap = document.getElementById('scopeLoadCap');
+  const scopeInCap = document.getElementById('scopeInCap');
+
+  PRESETS.forEach(p=>{
+    const o = document.createElement('option');
+    o.value = p.key; o.textContent = p.name;
+    presetSelect.appendChild(o);
+  });
+  presetSelect.value = state.presetKey;
+
+  // ---------------- formatting ----------------
+  function fmtOhm(x){ return (Math.round(x*10)/10).toLocaleString(undefined,{minimumFractionDigits: Math.abs(x)<10?1:0, maximumFractionDigits:1}) + ' Ω'; }
+  function fmtZ(Z){
+    const sign = Z.X>=0 ? '+' : '−';
+    return `${Z.R.toFixed(1)} ${sign} j${Math.abs(Z.X).toFixed(1)} Ω`;
+  }
+  function fmtL(H){
+    if(H*1 <= 0) return '0 H';
+    if(H < 1e-6) return (H*1e9).toFixed(0)+' nH';
+    if(H < 1e-3) return (H*1e6).toFixed(2)+' µH';
+    return (H*1e3).toFixed(2)+' mH';
+  }
+  function fmtC(F){
+    if(F*1 <= 0) return '0 F';
+    if(F < 1e-9) return (F*1e12).toFixed(0)+' pF';
+    if(F < 1e-6) return (F*1e9).toFixed(2)+' nF';
+    return (F*1e6).toFixed(2)+' µF';
+  }
+  function reactanceLabel(X, freqHz){
+    if(Math.abs(X) < 0.5) return 'bypassed';
+    if(X>0){ const L = X/(2*Math.PI*freqHz); return `${fmtL(L)} inductor  (+j${X.toFixed(0)} Ω)`; }
+    const C = 1/(2*Math.PI*freqHz*Math.abs(X));
+    return `${fmtC(C)} capacitor  (−j${Math.abs(X).toFixed(0)} Ω)`;
+  }
+  function susceptanceLabel(B, freqHz){
+    if(Math.abs(B) < 1e-6) return 'bypassed';
+    if(B>0){ const C = B/(2*Math.PI*freqHz); return `${fmtC(C)} capacitor  (+j${(B*1000).toFixed(1)} mS)`; }
+    const L = 1/(2*Math.PI*freqHz*Math.abs(B));
+    return `${fmtL(L)} inductor  (−j${Math.abs(B*1000).toFixed(1)} mS)`;
+  }
+
+  // ---------------- auto-tune solver ----------------
+  function autoTuneSolve(ZL, topology){
+    const RL = ZL.R, XL = ZL.X;
+    if(topology === 'shuntFirst'){
+      const D = RL*RL + XL*XL || 1e-9;
+      const GL = RL/D, BL = -XL/D;
+      const disc = GL/Z0 - GL*GL; // GL <= 1/Z0 required — this topology suits high-Z loads
+      if(disc < 0) return null;
+      const root = Math.sqrt(disc);
+      const cands = [root,-root].map(Bprime=>{
+        const Bp = Bprime - BL;
+        const Dd = GL*GL + Bprime*Bprime || 1e-9;
+        const X1 = -Bprime/Dd;
+        const Xs = -X1;
+        return { Xs, Bp, cost: Math.abs(Xs) + Math.abs(Bp)*Z0 };
+      }).sort((a,b)=>a.cost-b.cost);
+      return { Xs:cands[0].Xs, Bp:cands[0].Bp };
+    } else {
+      const disc = Z0*RL - RL*RL;
+      if(disc < 0) return null;
+      const root = Math.sqrt(disc);
+      const cands = [root,-root].map(X1=>{
+        const Xs = X1 - XL;
+        const Dd = RL*RL + X1*X1 || 1e-9;
+        const B1 = -X1/Dd;
+        const Bp = -B1;
+        return { Xs, Bp, cost: Math.abs(Xs) + Math.abs(Bp)*Z0 };
+      }).sort((a,b)=>a.cost-b.cost);
+      return { Xs:cands[0].Xs, Bp:cands[0].Bp };
+    }
+  }
+
+  // ---------------- network trace (for trajectory + Zin) ----------------
+  function computeNetwork(ZL, Xs, Bp, topology){
+    const N = 220; // fine enough that even a huge series/shunt swing still traces a smooth arc, not a faceted line
+    let pts1=[], pts2=[], Zafter1, Zafter2, order;
+    if(topology === 'seriesFirst'){
+      order = ['series','shunt'];
+      for(let i=0;i<=N;i++){ const t=i/N; pts1.push(gammaFromZ({R:ZL.R, X:ZL.X+t*Xs}, Z0)); }
+      Zafter1 = { R:ZL.R, X:ZL.X+Xs };
+      const Y1 = zToY(Zafter1);
+      for(let i=0;i<=N;i++){ const t=i/N; pts2.push(gammaFromZ(yToZ({G:Y1.G, B:Y1.B+t*Bp}), Z0)); }
+      Zafter2 = yToZ({ G:Y1.G, B:Y1.B+Bp });
+    } else {
+      order = ['shunt','series'];
+      const YL = zToY(ZL);
+      for(let i=0;i<=N;i++){ const t=i/N; pts1.push(gammaFromZ(yToZ({G:YL.G, B:YL.B+t*Bp}), Z0)); }
+      Zafter1 = yToZ({ G:YL.G, B:YL.B+Bp });
+      for(let i=0;i<=N;i++){ const t=i/N; pts2.push(gammaFromZ({R:Zafter1.R, X:Zafter1.X+t*Xs}, Z0)); }
+      Zafter2 = { R:Zafter1.R, X:Zafter1.X+Xs };
+    }
+    return { order, pts1, pts2, Zafter1, Zafter2 };
+  }
+
+  // ================= SMITH CHART SVG (static grid built once) =================
+  const SM = { cx:320, cy:320, R:270 };
+  const smithSvg = document.getElementById('smithSvg');
+  const NS = 'http://www.w3.org/2000/svg';
+
+  function toPx(g){ return { x: SM.cx + g.re*SM.R, y: SM.cy - g.im*SM.R }; }
+  function pathFromPts(pts){
+    return pts.map(g=>{ const p=toPx(g); return `${p.x.toFixed(2)},${p.y.toFixed(2)}`; }).join(' L ');
+  }
+  function makePath(d, stroke, width, opacity, dash){
+    const el = document.createElementNS(NS,'path');
+    el.setAttribute('d', 'M '+d);
+    el.setAttribute('fill','none');
+    el.setAttribute('stroke', stroke);
+    el.setAttribute('stroke-width', width);
+    if(opacity!==undefined) el.setAttribute('opacity', opacity);
+    if(dash) el.setAttribute('stroke-dasharray', dash);
+    el.setAttribute('stroke-linecap','round');
+    return el;
+  }
+  function makeText(x,y,txt,opts){
+    opts = opts||{};
+    const el = document.createElementNS(NS,'text');
+    el.setAttribute('x',x); el.setAttribute('y',y);
+    el.setAttribute('font-family',"'IBM Plex Mono', monospace");
+    el.setAttribute('font-size', opts.size||10);
+    el.setAttribute('fill', opts.fill || 'var(--ink-muted)');
+    el.setAttribute('text-anchor', opts.anchor||'middle');
+    el.textContent = txt;
+    return el;
+  }
+
+  // Constant-R circles and constant-X arcs are literal circles in the Γ-plane —
+  // draw them from their exact center/radius instead of sampling, so they render
+  // perfectly round at any size instead of as a faceted polyline.
+  function centerRadiusForR(r){ return { cx: r/(1+r), cy:0, rad: 1/(1+r) }; }
+  function centerRadiusForX(x){ return { cx:1, cy:1/x, rad: 1/Math.abs(x) }; }
+  function xArcPoints(x,N){
+    N = N||90;
+    const c = centerRadiusForX(x);
+    const p0 = smithGamma(0,x);             // r = 0 endpoint, on the outer rim
+    const a0 = Math.atan2(p0.im-c.cy, p0.re-c.cx);
+    const aInf = Math.atan2(0-c.cy, 1-c.cx); // r → ∞ endpoint, at Γ = (1,0)
+    let delta = aInf - a0;
+    while(delta > Math.PI) delta -= 2*Math.PI;
+    while(delta < -Math.PI) delta += 2*Math.PI;
+    const pts = [];
+    for(let i=0;i<=N;i++){
+      const a = a0 + delta*(i/N);
+      pts.push({ re: c.cx + c.rad*Math.cos(a), im: c.cy + c.rad*Math.sin(a) });
+    }
+    return pts;
+  }
+
+  const gridLayer = document.createElementNS(NS,'g');
+  const dataLayer = document.createElementNS(NS,'g');
+  smithSvg.appendChild(gridLayer);
+  smithSvg.appendChild(dataLayer);
+
+  function buildStaticGrid(){
+    // outer rim
+    const rim = document.createElementNS(NS,'circle');
+    rim.setAttribute('cx', SM.cx); rim.setAttribute('cy', SM.cy); rim.setAttribute('r', SM.R);
+    rim.setAttribute('fill','var(--well)'); rim.setAttribute('stroke','var(--line-strong)'); rim.setAttribute('stroke-width',1.5);
+    gridLayer.appendChild(rim);
+
+    const rVals = [0.2,0.5,1,2,5];
+    const xVals = [0.2,0.5,1,2,5];
+
+    rVals.forEach(r=>{
+      const c = centerRadiusForR(r);
+      const px = toPx({re:c.cx, im:c.cy});
+      const circle = document.createElementNS(NS,'circle');
+      circle.setAttribute('cx', px.x); circle.setAttribute('cy', px.y);
+      circle.setAttribute('r', c.rad*SM.R);
+      circle.setAttribute('fill','none');
+      circle.setAttribute('stroke','var(--line-strong)');
+      circle.setAttribute('stroke-width', r===1?1.3:0.9);
+      circle.setAttribute('opacity', r===1?0.85:0.5);
+      gridLayer.appendChild(circle);
+    });
+    xVals.forEach(x=>{
+      [x,-x].forEach(xx=>{
+        const d = pathFromPts(xArcPoints(xx));
+        gridLayer.appendChild(makePath(d, 'var(--line-strong)', 0.9, 0.5));
+      });
+    });
+    // real axis (x=0)
+    const a = toPx(smithGamma(0,0.00001)); // near-center helper unused
+    const left = toPx({re:-1,im:0}), right = toPx({re:1,im:0});
+    gridLayer.appendChild(makePath(`${left.x},${left.y} L ${right.x},${right.y}`, 'var(--ink-muted)', 1, 0.7));
+
+    // center marker
+    const c = toPx({re:0,im:0});
+    const cc = document.createElementNS(NS,'circle');
+    cc.setAttribute('cx',c.x); cc.setAttribute('cy',c.y); cc.setAttribute('r',4);
+    cc.setAttribute('fill','none'); cc.setAttribute('stroke','var(--ink-secondary)'); cc.setAttribute('stroke-width',1.4);
+    gridLayer.appendChild(cc);
+    gridLayer.appendChild(makeText(c.x, c.y-12, 'Z₀ MATCH', {size:9.5, fill:'var(--ink-secondary)'}));
+
+    // r-axis labels (left-most point of each r circle) — skip r=1, it lands on the match label
+    rVals.filter(r=>r!==1).forEach(r=>{
+      const p = toPx({re: (r-1)/(r+1), im:0});
+      gridLayer.appendChild(makeText(p.x, p.y-8, r.toString(), {size:10, fill:'var(--ink-muted)'}));
+    });
+    // x-arc labels near rim
+    xVals.forEach(x=>{
+      [ [x,'+j'+x], [-x,'−j'+x] ].forEach(([xx,label])=>{
+        const g = smithGamma(0,xx);
+        const p = toPx({ re:g.re*1.075, im:g.im*1.075 });
+        gridLayer.appendChild(makeText(p.x, p.y+3, label, {size:9.5, fill:'var(--ink-muted)'}));
+      });
+    });
+  }
+  buildStaticGrid();
+
+  // ---------------- dynamic layer ----------------
+  function marker(pt, r, fill, stroke, glow){
+    const p = toPx(pt);
+    const el = document.createElementNS(NS,'circle');
+    el.setAttribute('cx',p.x); el.setAttribute('cy',p.y); el.setAttribute('r',r);
+    el.setAttribute('fill',fill);
+    if(stroke){ el.setAttribute('stroke',stroke); el.setAttribute('stroke-width',1.6); }
+    if(glow) el.setAttribute('filter','url(#chartGlow)');
+    return el;
+  }
+
+  function renderChart(gammaLoad, net){
+    dataLayer.innerHTML = '';
+
+    // glow filter def (once)
+    if(!document.getElementById('chartGlow')){
+      const defs = document.createElementNS(NS,'defs');
+      defs.innerHTML = '<filter id="chartGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
+      smithSvg.appendChild(defs);
+    }
+
+    const colorFor = t => t==='series' ? 'var(--cyan)' : 'var(--amber)';
+
+    dataLayer.appendChild(makePath(pathFromPts(net.pts1), colorFor(net.order[0]), 3, 0.95));
+    dataLayer.appendChild(makePath(pathFromPts(net.pts2), colorFor(net.order[1]), 3, 0.95));
+
+    dataLayer.appendChild(marker(gammaLoad, 6, 'var(--ink)', 'var(--bg)'));
+    dataLayer.appendChild(marker(net.pts1[net.pts1.length-1], 4.5, colorFor(net.order[0]), 'var(--bg)'));
+    dataLayer.appendChild(marker(net.pts2[net.pts2.length-1], 7, 'var(--amber)', 'var(--bg)', true));
+  }
+
+  // ================= GAUGE =================
+  const gaugeTrack = document.getElementById('gaugeTrack');
+  const gaugeTicks = document.getElementById('gaugeTicks');
+  const needle = document.getElementById('needle');
+  const PIVOT = {x:150, y:168};
+  const GLEN = 122;
+  const ANG0 = -58, ANG1 = 58; // degrees, rho 0..1
+
+  function angFor(rho){ return ANG0 + (ANG1-ANG0)*clamp(rho,0,1); }
+  function ptFor(angDeg, len){
+    const t = angDeg*Math.PI/180;
+    return { x: PIVOT.x + len*Math.sin(t), y: PIVOT.y - len*Math.cos(t) };
+  }
+  function arcPath(rho0, rho1, radius){
+    const N=24; let d=[];
+    for(let i=0;i<=N;i++){
+      const rho = rho0 + (rho1-rho0)*(i/N);
+      const p = ptFor(angFor(rho), radius);
+      d.push(`${p.x.toFixed(2)},${p.y.toFixed(2)}`);
+    }
+    return d.join(' L ');
+  }
+
+  function buildGauge(){
+    const zones = [
+      {a:0.00, b:0.20, color:'var(--good)'},
+      {a:0.20, b:0.50, color:'var(--warn)'},
+      {a:0.50, b:1.00, color:'var(--crit)'},
+    ];
+    zones.forEach(z=>{
+      gaugeTrack.appendChild(makePath(arcPath(z.a,z.b,128), z.color, 8, 0.85));
+    });
+    const swrLabels = [1,1.5,2,3,5,10];
+    swrLabels.forEach(s=>{
+      const rho = (s-1)/(s+1);
+      const p1 = ptFor(angFor(rho), 112);
+      const p2 = ptFor(angFor(rho), 128);
+      gaugeTicks.appendChild(makePath(`${p1.x.toFixed(2)},${p1.y.toFixed(2)} L ${p2.x.toFixed(2)},${p2.y.toFixed(2)}`, 'var(--ink-secondary)', 1.4));
+      const pl = ptFor(angFor(rho), 100);
+      gaugeTicks.appendChild(makeText(pl.x, pl.y+3, s.toString(), {size:10, fill:'var(--ink-secondary)'}));
+    });
+    const pInf = ptFor(angFor(1.0), 100);
+    gaugeTicks.appendChild(makeText(pInf.x, pInf.y+3, '∞', {size:12, fill:'var(--ink-secondary)'}));
+  }
+  buildGauge();
+
+  function updateGauge(rho){
+    const p = ptFor(angFor(rho), GLEN);
+    needle.setAttribute('x2', p.x.toFixed(2));
+    needle.setAttribute('y2', p.y.toFixed(2));
+  }
+
+  // ================= OSCILLOSCOPE PANELS =================
+  // Forward (sent) wave is the 0°/unit-amplitude reference at whichever plane
+  // we're looking at; the reflected wave at that same plane runs at |Γ| times
+  // the amplitude and arg(Γ) degrees of phase relative to it — that phase and
+  // amplitude are exactly the Γ this page already computes for the chart.
+  const SCOPE_W = 420, SCOPE_H = 150, SCOPE_BASE = 75, SCOPE_AMP = 30, SCOPE_CYCLES = 2, SCOPE_N = 240;
+
+  function renderScope(svgEl, rho, phaseRad){
+    svgEl.innerHTML = '';
+    svgEl.appendChild(makePath(`0,${SCOPE_BASE} L ${SCOPE_W},${SCOPE_BASE}`, 'var(--line)', 1, 0.7));
+    const fwd=[], refl=[], sum=[];
+    for(let i=0;i<=SCOPE_N;i++){
+      const x = SCOPE_W*i/SCOPE_N;
+      const th = SCOPE_CYCLES*2*Math.PI*(i/SCOPE_N);
+      const f = Math.sin(th);
+      const r = rho*Math.sin(th+phaseRad);
+      fwd.push(`${x.toFixed(1)},${(SCOPE_BASE-SCOPE_AMP*f).toFixed(1)}`);
+      refl.push(`${x.toFixed(1)},${(SCOPE_BASE-SCOPE_AMP*r).toFixed(1)}`);
+      sum.push(`${x.toFixed(1)},${(SCOPE_BASE-SCOPE_AMP*(f+r)).toFixed(1)}`);
+    }
+    svgEl.appendChild(makePath(sum.join(' L '), 'var(--cyan)', 2.6, 0.55));
+    svgEl.appendChild(makePath(refl.join(' L '), 'var(--crit)', 2, 0.9, '5,4'));
+    svgEl.appendChild(makePath(fwd.join(' L '), 'var(--ink)', 2, 0.95));
+  }
+
+  function fmtScopeCap(rho, phaseRad){
+    const phaseDeg = phaseRad*180/Math.PI;
+    const vmax = 1+rho, vmin = Math.max(0,1-rho);
+    return `|Γ| ${rho.toFixed(2)} ∠ ${phaseDeg.toFixed(0)}°  ·  combined swing ${vmin.toFixed(2)}–${vmax.toFixed(2)}× the forward wave`;
+  }
+
+  // ================= DRAG-TO-REORDER PANELS =================
+  // Panels live in one CSS grid; dragging a header just moves that panel's DOM
+  // node before/after another one, so the grid itself reflows around it. Order
+  // is remembered per-browser (localStorage) — purely a local convenience, never
+  // read back by anyone else.
+  const dashboard = document.getElementById('dashboard');
+  const PANEL_ORDER_KEY = 'smithChartTuner.panelOrder.v1';
+  const DEFAULT_PANEL_ORDER = ['meter','antenna','tuner','chart','waves','explain','callout'];
+
+  function applyPanelOrder(order){
+    order.forEach(id=>{
+      const el = dashboard.querySelector(`[data-panel="${id}"]`);
+      if(el) dashboard.appendChild(el);
+    });
+  }
+  function loadSavedPanelOrder(){
+    try{
+      const saved = JSON.parse(localStorage.getItem(PANEL_ORDER_KEY) || 'null');
+      if(Array.isArray(saved) && saved.length) applyPanelOrder(saved);
+    }catch(e){ /* private mode / storage unavailable — keep default order */ }
+  }
+  function savePanelOrder(){
+    try{
+      const order = [...dashboard.children].map(el=>el.dataset.panel);
+      localStorage.setItem(PANEL_ORDER_KEY, JSON.stringify(order));
+    }catch(e){ /* ignore — nothing to persist to */ }
+  }
+  loadSavedPanelOrder();
+
+  function clearDropHighlight(){
+    dashboard.querySelectorAll('.panel--drop-before,.panel--drop-after').forEach(p=>{
+      p.classList.remove('panel--drop-before','panel--drop-after');
+    });
+  }
+
+  function initPanelDragging(){
+    dashboard.querySelectorAll('.panel').forEach(panel=>{
+      const handle = panel.querySelector('.module__head');
+      if(!handle) return;
+      handle.addEventListener('pointerdown', (e)=>{
+        if(e.button !== 0 && e.pointerType==='mouse') return;
+        startPanelDrag(panel, e);
+      });
+    });
+  }
+
+  function startPanelDrag(panel, startEvent){
+    startEvent.preventDefault();
+    const rect = panel.getBoundingClientRect();
+    const ghost = panel.cloneNode(true);
+    ghost.classList.add('drag-ghost');
+    ghost.style.width = rect.width+'px';
+    ghost.style.left = rect.left+'px';
+    ghost.style.top = rect.top+'px';
+    document.body.appendChild(ghost);
+    panel.classList.add('panel--source');
+
+    const startX = startEvent.clientX, startY = startEvent.clientY;
+    let target = null, after = false;
+
+    function onMove(ev){
+      const dx = ev.clientX-startX, dy = ev.clientY-startY;
+      ghost.style.transform = `translate(${dx}px, ${dy}px)`;
+      clearDropHighlight();
+      const under = document.elementFromPoint(ev.clientX, ev.clientY);
+      const cand = under ? under.closest('.panel') : null;
+      if(cand && cand!==panel){
+        const r = cand.getBoundingClientRect();
+        const fx = (ev.clientX-r.left)/r.width, fy = (ev.clientY-r.top)/r.height;
+        after = (fx+fy) > 1; // pointer past the candidate's own diagonal → drop after it
+        target = cand;
+        target.classList.add(after ? 'panel--drop-after' : 'panel--drop-before');
+      } else {
+        target = null;
+      }
+    }
+    function onUp(){
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      ghost.remove();
+      panel.classList.remove('panel--source');
+      clearDropHighlight();
+      if(target){
+        dashboard.insertBefore(panel, after ? target.nextSibling : target);
+        savePanelOrder();
+      }
+    }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  }
+  initPanelDragging();
+
+  document.getElementById('resetLayoutBtn').addEventListener('click', ()=>{
+    try{ localStorage.removeItem(PANEL_ORDER_KEY); }catch(e){}
+    applyPanelOrder(DEFAULT_PANEL_ORDER);
+  });
+
+  // ================= RENDER / STATE =================
+  function currentPreset(){ return PRESETS.find(p=>p.key===state.presetKey); }
+
+  function setTopologyUI(){
+    [...topoToggle.querySelectorAll('button')].forEach(b=>{
+      b.classList.toggle('active', b.dataset.topo === state.topology);
+    });
+    flowLine.innerHTML = state.topology==='seriesFirst'
+      ? 'ANTENNA → <span>SERIES X</span> → <b>SHUNT B</b> → TRANSMITTER'
+      : 'ANTENNA → <b>SHUNT B</b> → <span>SERIES X</span> → TRANSMITTER';
+  }
+
+  function render(){
+    const preset = currentPreset();
+    const ZL = loadZ(preset, state.freq);
+    const freqHz = state.freq*1e6;
+
+    const net = computeNetwork(ZL, state.Xs, state.Bp, state.topology);
+    const gammaL = gammaFromZ(ZL, Z0);
+    const ZinGamma = net.pts2[net.pts2.length-1];
+    const rho = Math.min(0.999, Math.hypot(ZinGamma.re, ZinGamma.im));
+    const swr = (1+rho)/(1-rho);
+
+    // gauge + readouts
+    updateGauge(rho);
+    swrNum.textContent = swr>50 ? '∞' : swr.toFixed(swr<10?2:1);
+    let statusColor, statusText;
+    if(rho<0.20){ statusColor='var(--good)'; statusText='Matched'; }
+    else if(rho<0.50){ statusColor='var(--warn)'; statusText='Acceptable'; }
+    else { statusColor='var(--crit)'; statusText='High SWR'; }
+    statusPill.textContent = statusText;
+    statusPill.style.color = statusColor;
+
+    const fwd = 100;
+    const refl = fwd*rho*rho;
+    refVal.textContent = refl.toFixed(1)+' W';
+    refFill.style.width = clamp((refl/fwd)*100,0,100).toFixed(1)+'%';
+    refFill.style.background = statusColor;
+
+    // chart
+    renderChart(gammaL, net);
+
+    // oscilloscope panels: same instant, two reference planes
+    const rhoLoad = Math.hypot(gammaL.re, gammaL.im);
+    const phaseLoad = Math.atan2(gammaL.im, gammaL.re);
+    const phaseIn = Math.atan2(ZinGamma.im, ZinGamma.re);
+    renderScope(scopeLoadSvg, rhoLoad, phaseLoad);
+    scopeLoadCap.textContent = fmtScopeCap(rhoLoad, phaseLoad);
+    renderScope(scopeInSvg, rho, phaseIn);
+    scopeInCap.textContent = fmtScopeCap(rho, phaseIn);
+
+    // labels
+    freqVal.textContent = state.freq.toFixed(3)+' MHz';
+    freqHeadLabel.textContent = state.freq.toFixed(3)+' MHz';
+    zLoadVal.textContent = fmtZ(ZL);
+    presetSub.textContent = preset.note;
+
+    xsVal.textContent = (state.Xs>=0?'+':'−')+Math.abs(state.Xs).toFixed(0)+' Ω';
+    bpVal.textContent = (state.Bp>=0?'+':'−')+Math.abs(state.Bp*1000).toFixed(1)+' mS';
+    xsComp.textContent = reactanceLabel(state.Xs, freqHz);
+    bpComp.textContent = susceptanceLabel(state.Bp, freqHz);
+
+    const returnLoss = rho>0.0001 ? (-20*Math.log10(rho)) : 60;
+    numStrip.innerHTML = `
+      <span class="k">Z<sub>in</sub> (TX sees)</span><span class="v">${fmtZ(net.Zafter2)}</span>
+      <span class="k">|Γ| ∠ phase</span><span class="v">${rho.toFixed(3)} ∠ ${(Math.atan2(ZinGamma.im,ZinGamma.re)*180/Math.PI).toFixed(0)}°</span>
+      <span class="k">Return loss</span><span class="v">${returnLoss>40?'>40':returnLoss.toFixed(1)} dB</span>
+      <span class="k">VSWR</span><span class="v">${swr>50?'>50':swr.toFixed(2)} : 1</span>
+    `;
+
+    setTopologyUI();
+  }
+
+  // ================= EVENTS =================
+  presetSelect.addEventListener('change', ()=>{
+    state.presetKey = presetSelect.value;
+    const p = currentPreset();
+    state.freq = clamp(p.f0, 1.8, 30);
+    freqSlider.value = state.freq;
+    render();
+  });
+
+  freqSlider.addEventListener('input', ()=>{
+    state.freq = parseFloat(freqSlider.value);
+    render();
+  });
+
+  xsSlider.addEventListener('input', ()=>{
+    state.Xs = parseFloat(xsSlider.value);
+    tuneStatus.textContent = '';
+    render();
+  });
+  bpSlider.addEventListener('input', ()=>{
+    state.Bp = parseFloat(bpSlider.value)/1000;
+    tuneStatus.textContent = '';
+    render();
+  });
+
+  topoToggle.addEventListener('click', (e)=>{
+    const btn = e.target.closest('button');
+    if(!btn) return;
+    state.topology = btn.dataset.topo;
+    tuneStatus.textContent = '';
+    render();
+  });
+
+  document.getElementById('bypassBtn').addEventListener('click', ()=>{
+    animateTo(0,0);
+    tuneStatus.textContent = '';
+  });
+
+  document.getElementById('autoTuneBtn').addEventListener('click', ()=>{
+    const preset = currentPreset();
+    const ZL = loadZ(preset, state.freq);
+    let sol = autoTuneSolve(ZL, state.topology);
+    let flipped = false;
+    if(!sol){
+      state.topology = state.topology==='seriesFirst' ? 'shuntFirst' : 'seriesFirst';
+      sol = autoTuneSolve(ZL, state.topology);
+      flipped = true;
+    }
+    if(!sol){ tuneStatus.textContent = 'No solution found for this load.'; return; }
+    sol.Xs = clamp(sol.Xs, -1500, 1500);
+    sol.Bp = clamp(sol.Bp, -0.04, 0.04);
+    tuneStatus.textContent = flipped ? 'Switched signal-path order to reach a match.' : 'Solved for exact match.';
+    animateTo(sol.Xs, sol.Bp*1000);
+  });
+
+  function animateTo(targetXs, targetBpMs){
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const startXs = state.Xs, startBpMs = state.Bp*1000;
+    if(reduced){
+      state.Xs = targetXs; state.Bp = targetBpMs/1000;
+      xsSlider.value = state.Xs; bpSlider.value = targetBpMs;
+      render();
+      return;
+    }
+    const dur = 650;
+    const t0 = performance.now();
+    function ease(t){ return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; }
+    function frame(now){
+      const t = clamp((now-t0)/dur, 0, 1);
+      const e = ease(t);
+      state.Xs = startXs + (targetXs-startXs)*e;
+      state.Bp = (startBpMs + (targetBpMs-startBpMs)*e)/1000;
+      xsSlider.value = state.Xs.toFixed(1);
+      bpSlider.value = (state.Bp*1000).toFixed(2);
+      render();
+      if(t<1) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // Open already matched, so the meter, chart and scopes all demonstrate what
+  // the tool does at a glance instead of opening on a plain bypassed (high-SWR) state.
+  (function initTuned(){
+    const ZL0 = loadZ(currentPreset(), state.freq);
+    let sol = autoTuneSolve(ZL0, state.topology);
+    if(!sol){ state.topology = 'shuntFirst'; sol = autoTuneSolve(ZL0, state.topology); }
+    if(sol){
+      state.Xs = clamp(sol.Xs, -1500, 1500);
+      state.Bp = clamp(sol.Bp, -0.04, 0.04);
+      xsSlider.value = state.Xs;
+      bpSlider.value = (state.Bp*1000).toFixed(2);
+    }
+  })();
+
+  setTopologyUI();
+  render();
+})();
+</script>
