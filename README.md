@@ -30,18 +30,27 @@ Made using Claude Sonnet 5 High
   dipole, a short mobile whip, an end-fed long wire, and a flat 50 Ω
   reference load) whose feedpoint impedance shifts with frequency using a
   simplified resonance model.
-- **Antenna tuner (L-network)** — two tuning controls, a series reactance
-  and a shunt susceptance, in either signal-path order (series-then-shunt
-  or shunt-then-series). Each is labeled with the equivalent inductor or
+- **Antenna tuner** — choose an **L-network**, **Pi-network (π)**, or
+  **T-network** topology. The L-network offers two tuning controls, a
+  series reactance and a shunt susceptance, in either signal-path order
+  (series-then-shunt or shunt-then-series); the Pi- and T-networks add a
+  third element and a **virtual resistance R<sub>v</sub>** control that
+  sets the loaded Q where their two constituent L-sections meet — the
+  extra degree of freedom a three-element network has that a plain
+  L-match doesn't. Every match is labeled with the equivalent inductor or
   capacitor value at the current frequency. An **Auto-Tune** button solves
-  the exact L-match analytically (flipping the signal-path order on its
-  own if the one you've selected has no solution for the current load).
-  Every L-match has two valid root solutions, so an **Auto-Tune target**
-  toggle lets you choose which one to solve for — low-pass (series
-  inductor, shunt capacitor) or high-pass (series capacitor, shunt
-  inductor) — and a live label classifies whatever combination is
-  currently dialed in, including by hand, as low-pass, high-pass,
-  bypassed, or a mixed combination that isn't a canonical L-match at all.
+  the exact match analytically for whichever topology is selected
+  (flipping the L-network's signal-path order on its own if the one
+  you've selected has no solution for the current load). Every match has
+  two valid root solutions, so an **Auto-Tune target** toggle lets you
+  choose which one to solve for — low-pass (series inductor, shunt
+  capacitor) or high-pass (series capacitor, shunt inductor) — and a live
+  label classifies whatever combination is currently dialed in, including
+  by hand, as low-pass, high-pass, bypassed, or a mixed combination that
+  isn't a canonical match at all.
+- **Color themes** — a theme picker in the header switches the whole page
+  between the default dark instrument look, Solarized Dark, Solarized
+  Light, Nord, and Dracula; your choice is remembered locally.
 - **Smith chart** — a normalized (Z₀ = 50 Ω) impedance chart with true
   circular grid geometry. It plots the antenna's raw reflection
   coefficient, the trajectory each tuning element sweeps (series moves
@@ -68,9 +77,12 @@ relationships, computed live in plain JavaScript:
 - The Smith chart grid (constant-resistance circles, constant-reactance
   arcs) is drawn from its exact center/radius in the Γ-plane, not
   approximated, so it stays perfectly round at any zoom level.
-- The L-network auto-tune solver matches a complex load to a real Z₀
-  analytically (the standard "Q-based" L-match formulas), rather than
-  searching numerically.
+- The L-network auto-tune solver matches a complex load to a real target
+  resistance analytically (the standard "Q-based" L-match formulas),
+  rather than searching numerically. The Pi- and T-network solvers reuse
+  that same L-match solver twice, matching the load down (Pi) or up (T)
+  to a real virtual resistance and back to Z₀ — the classic way a
+  three-element network decomposes into two L-sections.
 
 Feedpoint impedances for the antenna presets are simplified, illustrative
 curves for teaching purposes — not measured antenna data.

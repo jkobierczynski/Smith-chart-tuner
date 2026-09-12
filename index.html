@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Smith Chart Tuner</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,8 +23,36 @@
     --crit:          #f9695a;
   }
 
+  /* ---------- alternate color themes (selectable, persisted) ---------- */
+  :root[data-theme="solarized-dark"]{
+    --bg:#002b36; --panel:#073642; --panel-raised:#0b4351; --well:#012730;
+    --line:#0a4655; --line-strong:#155667; --ink:#93a1a1; --ink-secondary:#839496;
+    --ink-muted:#586e75; --amber:#b58900; --amber-dim:#7b5d00; --cyan:#2aa198;
+    --cyan-dim:#1c6b64; --good:#859900; --warn:#cb4b16; --crit:#dc322f;
+  }
+  :root[data-theme="solarized-light"]{
+    --bg:#fdf6e3; --panel:#eee8d5; --panel-raised:#f7f1e0; --well:#e4dcc4;
+    --line:#d7cfb4; --line-strong:#c1b795; --ink:#073642; --ink-secondary:#586e75;
+    --ink-muted:#839496; --amber:#b58900; --amber-dim:#ded1a0; --cyan:#2aa198;
+    --cyan-dim:#bfe0dc; --good:#859900; --warn:#cb4b16; --crit:#dc322f;
+    color-scheme: light;
+  }
+  :root[data-theme="nord"]{
+    --bg:#2e3440; --panel:#3b4252; --panel-raised:#434c5e; --well:#272c36;
+    --line:#434c5e; --line-strong:#4c566a; --ink:#eceff4; --ink-secondary:#d8dee9;
+    --ink-muted:#8391ad; --amber:#d08770; --amber-dim:#6b4a3d; --cyan:#88c0d0;
+    --cyan-dim:#3f5761; --good:#a3be8c; --warn:#ebcb8b; --crit:#bf616a;
+  }
+  :root[data-theme="dracula"]{
+    --bg:#282a36; --panel:#343746; --panel-raised:#3d4052; --well:#21222c;
+    --line:#3a3d4d; --line-strong:#44475a; --ink:#f8f8f2; --ink-secondary:#bfc7d5;
+    --ink-muted:#6272a4; --amber:#ffb86c; --amber-dim:#7a5a35; --cyan:#8be9fd;
+    --cyan-dim:#3d5b63; --good:#50fa7b; --warn:#f1fa8c; --crit:#ff5555;
+  }
+
   *{ box-sizing:border-box; }
   html{ color-scheme: dark; }
+  [hidden]{ display:none !important; } /* guard against later, more-specific display rules */
 
   body{
     margin:0;
@@ -97,6 +126,18 @@
     letter-spacing:.02em;
     white-space:nowrap;
   }
+  .masthead-controls{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .theme-picker{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--ink-muted);
+  }
+  .theme-picker select{ padding:7px 10px; font-size:12.5px; }
 
   /* ---------- layout: draggable dashboard grid ---------- */
   .dashboard{
@@ -216,13 +257,13 @@
     width:16px; height:16px; margin-top:-6px;
     border-radius:50%;
     background:var(--amber);
-    border:2px solid #1b2028;
+    border:2px solid var(--bg);
     box-shadow:0 0 0 1px var(--amber);
     cursor:pointer;
   }
   input[type="range"]::-moz-range-thumb{
     width:14px; height:14px; border-radius:50%;
-    background:var(--amber); border:2px solid #1b2028;
+    background:var(--amber); border:2px solid var(--bg);
     box-shadow:0 0 0 1px var(--amber);
     cursor:pointer;
   }
@@ -392,12 +433,35 @@
   }
 </style>
 
+<script>
+  // Applied immediately (before the page paints) so a saved theme choice
+  // never flashes the default one first.
+  (function(){
+    try{
+      var t = localStorage.getItem('smithChartTuner.theme.v1');
+      if(t && t!=='instrument') document.documentElement.setAttribute('data-theme', t);
+    }catch(e){ /* private mode / storage unavailable — default theme stands */ }
+  })();
+</script>
+
 <div class="wrap">
 
   <header class="masthead">
     <div class="masthead-row">
       <div class="eyebrow">RF Impedance Matching Bench</div>
-      <button class="btn ghost" id="resetLayoutBtn" title="Restore the default panel order">Reset layout</button>
+      <div class="masthead-controls">
+        <label class="theme-picker">
+          <span>Theme</span>
+          <select id="themeSelect">
+            <option value="instrument">Instrument (default)</option>
+            <option value="solarized-dark">Solarized Dark</option>
+            <option value="solarized-light">Solarized Light</option>
+            <option value="nord">Nord</option>
+            <option value="dracula">Dracula</option>
+          </select>
+        </label>
+        <button class="btn ghost" id="resetLayoutBtn" title="Restore the default panel order">Reset layout</button>
+      </div>
     </div>
     <h1>Smith Chart Tuner</h1>
     <p class="dek">Drag the tuner's series and shunt elements and watch the transmitter's SWR meter — and the matching point on the Smith chart — respond in real time. Every needle deflection here is a specific point on that chart.</p>
@@ -462,15 +526,30 @@
       </div>
 
       <div class="module panel" data-panel="tuner">
-        <div class="module__head"><span><span class="grip" aria-hidden="true"></span>Antenna Tuner (L-network)</span></div>
+        <div class="module__head"><span><span class="grip" aria-hidden="true"></span>Antenna Tuner</span><b id="tunerNetLabel">L-network</b></div>
         <div class="stack">
           <div class="field">
+            <div class="field-top"><span class="name">Network type</span></div>
+            <div class="toggle" id="networkTypeToggle">
+              <button data-nettype="L">L-network</button>
+              <button data-nettype="pi">Pi-network (π)</button>
+              <button data-nettype="t">T-network</button>
+            </div>
+          </div>
+
+          <div class="field" id="signalPathField">
             <div class="field-top"><span class="name">Signal path</span></div>
             <div class="toggle" id="topoToggle">
               <button data-topo="seriesFirst">Series → Shunt</button>
               <button data-topo="shuntFirst">Shunt → Series</button>
             </div>
-            <div class="flowline" id="flowLine"></div>
+          </div>
+          <div class="flowline" id="flowLine"></div>
+
+          <div class="field" id="rvField">
+            <div class="field-top"><span class="name">Virtual resistance R<sub>v</sub></span><span class="val" id="rvVal">25 Ω</span></div>
+            <input type="range" id="rvSlider" min="1" max="49" step="0.5" value="25">
+            <span class="subval" id="rvComp">Sets the loaded Q where the two L-sections meet.</span>
           </div>
 
           <div class="field">
@@ -479,19 +558,25 @@
               <button data-match="lowpass">Low-pass (L → C)</button>
               <button data-match="highpass">High-pass (C → L)</button>
             </div>
-            <span class="subval">Every L-match has two solutions — pick which one Auto-Tune solves for.</span>
+            <span class="subval">Every match here has two solutions — pick which one Auto-Tune solves for.</span>
           </div>
 
-          <label class="field">
-            <div class="field-top"><span class="name">Series element</span><span class="val" id="xsVal">0 Ω</span></div>
+          <label class="field" id="xsField">
+            <div class="field-top"><span class="name" id="xsName">Series element</span><span class="val" id="xsVal">0 Ω</span></div>
             <input type="range" id="xsSlider" min="-1500" max="1500" step="2" value="0">
             <span class="subval" id="xsComp">bypassed</span>
           </label>
 
-          <label class="field">
-            <div class="field-top"><span class="name">Shunt element</span><span class="val" id="bpVal">0 mS</span></div>
+          <label class="field" id="bpField">
+            <div class="field-top"><span class="name" id="bpName">Shunt element</span><span class="val" id="bpVal">0 mS</span></div>
             <input type="range" id="bpSlider" min="-40" max="40" step="0.2" value="0">
             <span class="subval" id="bpComp">bypassed</span>
+          </label>
+
+          <label class="field" id="elCField">
+            <div class="field-top"><span class="name" id="elCName">Series element 2</span><span class="val" id="elCVal">0 Ω</span></div>
+            <input type="range" id="elCSlider" min="-1500" max="1500" step="2" value="0">
+            <span class="subval" id="elCComp">bypassed</span>
           </label>
 
           <div class="btnrow">
@@ -599,10 +684,16 @@
   const state = {
     presetKey:'dipole',
     freq:7.15,
-    topology:'seriesFirst',
+    networkType:'L', // 'L' | 'pi' | 't'
+    topology:'seriesFirst', // L-network only: which element the signal meets first
     matchType:'lowpass', // which Auto-Tune root to solve for: 'lowpass' (series L, shunt C) or 'highpass' (series C, shunt L)
-    Xs:0,
-    Bp:0, // siemens
+    Rv:25, // virtual resistance (Ω) Auto-Tune targets for the Pi/T mid-node — sets the loaded Q
+    // Generic element "slots" — physical meaning (series Ω vs shunt S) depends on
+    // networkType; see slotKindAt(). slot1/slot2 are the L-network's familiar
+    // Series/Shunt elements when networkType==='L'; slot3 is only used by Pi/T.
+    slot1:0,
+    slot2:0,
+    slot3:0,
   };
 
   // ---------------- DOM refs ----------------
@@ -617,11 +708,28 @@
   const bpVal = document.getElementById('bpVal');
   const xsComp = document.getElementById('xsComp');
   const bpComp = document.getElementById('bpComp');
+  const xsName = document.getElementById('xsName');
+  const bpName = document.getElementById('bpName');
+  const xsField = document.getElementById('xsField');
+  const bpField = document.getElementById('bpField');
+  const elCSlider = document.getElementById('elCSlider');
+  const elCVal = document.getElementById('elCVal');
+  const elCComp = document.getElementById('elCComp');
+  const elCName = document.getElementById('elCName');
+  const elCField = document.getElementById('elCField');
+  const rvSlider = document.getElementById('rvSlider');
+  const rvVal = document.getElementById('rvVal');
+  const rvComp = document.getElementById('rvComp');
+  const rvField = document.getElementById('rvField');
+  const signalPathField = document.getElementById('signalPathField');
+  const networkTypeToggle = document.getElementById('networkTypeToggle');
+  const tunerNetLabel = document.getElementById('tunerNetLabel');
   const topoToggle = document.getElementById('topoToggle');
   const matchTypeToggle = document.getElementById('matchTypeToggle');
   const flowLine = document.getElementById('flowLine');
   const tuneStatus = document.getElementById('tuneStatus');
   const currentMatchLabel = document.getElementById('currentMatchLabel');
+  const themeSelect = document.getElementById('themeSelect');
   const zLoadVal = document.getElementById('zLoadVal');
   const numStrip = document.getElementById('numStrip');
   const swrNum = document.getElementById('swrNum');
@@ -640,6 +748,20 @@
     presetSelect.appendChild(o);
   });
   presetSelect.value = state.presetKey;
+
+  // ---------------- theme (persisted, applied inline in <head> to avoid flash) ----------------
+  const THEME_KEY = 'smithChartTuner.theme.v1';
+  (function initTheme(){
+    let saved = 'instrument';
+    try{ saved = localStorage.getItem(THEME_KEY) || 'instrument'; }catch(e){}
+    themeSelect.value = saved;
+  })();
+  themeSelect.addEventListener('change', ()=>{
+    const theme = themeSelect.value;
+    if(theme && theme!=='instrument') document.documentElement.setAttribute('data-theme', theme);
+    else document.documentElement.removeAttribute('data-theme');
+    try{ localStorage.setItem(THEME_KEY, theme); }catch(e){ /* ignore — nothing to persist to */ }
+  });
 
   // ---------------- formatting ----------------
   function fmtOhm(x){ return (Math.round(x*10)/10).toLocaleString(undefined,{minimumFractionDigits: Math.abs(x)<10?1:0, maximumFractionDigits:1}) + ' Ω'; }
@@ -673,71 +795,153 @@
   }
 
   // ---------------- auto-tune solver ----------------
-  // The match equation is quadratic, so for a given topology there are always
-  // two valid roots — a low-pass realization (series inductor, shunt
-  // capacitor) and a high-pass one (series capacitor, shunt inductor), the
-  // classic two-solution ambiguity of any L-network. matchType picks which
-  // root to return; the sign convention below makes +root the low-pass one
-  // and -root the high-pass one for both topologies.
-  function autoTuneSolve(ZL, topology, matchType){
-    const RL = ZL.R, XL = ZL.X;
+  // The match equation for a single L-section is quadratic, so there are
+  // always two valid roots — a low-pass realization (series inductor, shunt
+  // capacitor) and a high-pass one (series capacitor, shunt inductor).
+  // matchType picks which root; +root is the low-pass one, -root the
+  // high-pass one, in both helpers below.
+  //
+  // These two helpers solve an L-section from an arbitrary complex load Z to
+  // an arbitrary REAL target resistance Rtarget (not just Z0) — that
+  // generality is what lets a Pi/T network be built as two L-sections
+  // sharing a real "virtual resistance" node (see piMatchSolve/tMatchSolve).
+  function lMatchShuntFirst(Z, Rtarget, matchType){
+    const RL = Z.R, XL = Z.X;
     const wantHighpass = matchType === 'highpass';
-    if(topology === 'shuntFirst'){
-      const D = RL*RL + XL*XL || 1e-9;
-      const GL = RL/D, BL = -XL/D;
-      const disc = GL/Z0 - GL*GL; // GL <= 1/Z0 required — this topology suits high-Z loads
-      if(disc < 0) return null;
-      const root = Math.sqrt(disc);
-      const Bprime = wantHighpass ? -root : root;
-      const Bp = Bprime - BL;
-      const Dd = GL*GL + Bprime*Bprime || 1e-9;
-      const X1 = -Bprime/Dd;
-      const Xs = -X1;
-      return { Xs, Bp };
-    } else {
-      const disc = Z0*RL - RL*RL;
-      if(disc < 0) return null;
-      const root = Math.sqrt(disc);
-      const X1 = wantHighpass ? -root : root;
-      const Xs = X1 - XL;
-      const Dd = RL*RL + X1*X1 || 1e-9;
-      const B1 = -X1/Dd;
-      const Bp = -B1;
-      return { Xs, Bp };
-    }
+    const D = RL*RL + XL*XL || 1e-9;
+    const GL = RL/D, BL = -XL/D;
+    const disc = GL/Rtarget - GL*GL; // GL <= 1/Rtarget required (steps DOWN to Rtarget, or equal)
+    if(disc < 0) return null;
+    const root = Math.sqrt(disc);
+    const Bprime = wantHighpass ? -root : root;
+    const B = Bprime - BL; // shunt element (applied first)
+    const Dd = GL*GL + Bprime*Bprime || 1e-9;
+    const X1 = -Bprime/Dd;
+    const X = -X1; // series element (applied second, cancels the residual reactance)
+    return { B, X };
+  }
+  function lMatchSeriesFirst(Z, Rtarget, matchType){
+    const RL = Z.R, XL = Z.X;
+    const wantHighpass = matchType === 'highpass';
+    const disc = Rtarget*RL - RL*RL; // Rtarget >= RL required (steps UP to Rtarget, or equal)
+    if(disc < 0) return null;
+    const root = Math.sqrt(disc);
+    const X1 = wantHighpass ? -root : root;
+    const X = X1 - XL; // series element (applied first)
+    const Dd = RL*RL + X1*X1 || 1e-9;
+    const B1 = -X1/Dd;
+    const B = -B1; // shunt element (applied second, cancels the residual susceptance)
+    return { X, B };
   }
 
-  // Classifies whatever (Xs, Bp) is currently dialed in — manually or via
-  // Auto-Tune — as a canonical low-pass / high-pass L-match, or neither.
-  function classifyMatchType(Xs, Bp){
-    const xsSign = Math.abs(Xs) < 0.5 ? 0 : Math.sign(Xs);
-    const bpSign = Math.abs(Bp) < 1e-5 ? 0 : Math.sign(Bp);
-    if(xsSign===0 && bpSign===0) return 'Bypassed — no reactive elements in the circuit';
-    if(xsSign>=0 && bpSign>=0) return 'Low-pass L-match (series inductor, shunt capacitor)';
-    if(xsSign<=0 && bpSign<=0) return 'High-pass L-match (series capacitor, shunt inductor)';
-    return 'Mixed elements — not a canonical low-pass or high-pass L-match';
+  // L-network: a single L-section straight to Z0.
+  function autoTuneSolve(ZL, topology, matchType){
+    const sol = topology === 'shuntFirst'
+      ? lMatchShuntFirst(ZL, Z0, matchType)
+      : lMatchSeriesFirst(ZL, Z0, matchType);
+    if(!sol) return null;
+    return { Xs: sol.X, Bp: sol.B };
+  }
+
+  // Pi-network (shunt C1, series L, shunt C2): two L-sections sharing a
+  // virtual resistance Rv, which must be <= both the load's resistance and
+  // Z0 for this decomposition to exist (Pi steps down to a low mid-node,
+  // then back up).
+  function piMatchSolve(ZL, Rv, matchType){
+    const s1 = lMatchShuntFirst(ZL, Rv, matchType);       // load -> real Rv (shunt B1, series Xa)
+    if(!s1) return null;
+    const s2 = lMatchSeriesFirst({R:Rv, X:0}, Z0, matchType); // real Rv -> Z0 (series Xb, shunt B2)
+    if(!s2) return null;
+    return { B1: s1.B, Xm: s1.X + s2.X, B2: s2.B };
+  }
+
+  // T-network (series L1, shunt, series L2): two L-sections sharing a
+  // virtual resistance Rv that must be >= both the load's resistance and Z0
+  // (T steps up to a high mid-node, then back down).
+  function tMatchSolve(ZL, Rv, matchType){
+    const s1 = lMatchSeriesFirst(ZL, Rv, matchType);      // load -> real Rv (series Xa, shunt B1)
+    if(!s1) return null;
+    const s2 = lMatchShuntFirst({R:Rv, X:0}, Z0, matchType); // real Rv -> Z0 (shunt B2, series Xb)
+    if(!s2) return null;
+    return { X1: s1.X, Bm: s1.B + s2.B, X2: s2.X };
+  }
+
+  // Feasible Rv range for the current load, per network type — keeps the
+  // Rv slider always solvable so Auto-Tune never has to report failure.
+  function rvBoundsFor(ZL){
+    const RL = ZL.R, XL = ZL.X;
+    const D = RL*RL + XL*XL || 1e-9;
+    if(state.networkType==='pi'){
+      const upper = Math.max(2, Math.min(Z0, D/RL) * 0.96);
+      const lower = Math.max(0.5, upper*0.04);
+      return { min:lower, max:upper };
+    } else if(state.networkType==='t'){
+      const lower = Math.max(RL, Z0) * 1.04;
+      const upper = Math.min(lower*9, 6000);
+      return { min:lower, max:Math.max(upper, lower+1) };
+    }
+    return null;
+  }
+
+  // Which slots are in play, and in what order the circuit actually applies
+  // them (topology can reorder an L-network's two slots; Pi/T have a fixed
+  // shunt/series pattern with no ordering choice).
+  function buildSlotsInOrder(){
+    if(state.networkType==='pi'){
+      return [ {kind:'shunt', val:state.slot1}, {kind:'series', val:state.slot2}, {kind:'shunt', val:state.slot3} ];
+    }
+    if(state.networkType==='t'){
+      return [ {kind:'series', val:state.slot1}, {kind:'shunt', val:state.slot2}, {kind:'series', val:state.slot3} ];
+    }
+    return state.topology==='seriesFirst'
+      ? [ {kind:'series', val:state.slot1}, {kind:'shunt', val:state.slot2} ]
+      : [ {kind:'shunt', val:state.slot2}, {kind:'series', val:state.slot1} ];
+  }
+
+  // Which physical quantity (reactance 'X' in Ω, or susceptance 'B' in S)
+  // slot 1/2/3 represents in the current network type. Slot 3 is unused (null) for L.
+  function slotKindAt(idx){
+    if(state.networkType==='pi') return idx===2 ? 'X' : 'B';
+    if(state.networkType==='t')  return idx===2 ? 'B' : 'X';
+    return idx===1 ? 'X' : (idx===2 ? 'B' : null); // L
+  }
+
+  // Classifies whatever is currently dialed in — manually or via Auto-Tune —
+  // as a canonical low-pass / high-pass match for the active network type, or neither.
+  function classifyMatchTypeGeneric(slotsInOrder){
+    const signs = slotsInOrder.map(s=>{
+      const eps = s.kind==='series' ? 0.5 : 1e-5;
+      return Math.abs(s.val) < eps ? 0 : Math.sign(s.val);
+    });
+    if(signs.every(s=>s===0)) return 'Bypassed — no reactive elements in the circuit';
+    const netName = slotsInOrder.length===2 ? 'L-match' : (state.networkType==='pi' ? 'Pi-match' : 'T-match');
+    const plural = slotsInOrder.length>2 ? 's' : '';
+    if(signs.every(s=>s>=0)) return `Low-pass ${netName} (series inductor${plural}, shunt capacitor${plural})`;
+    if(signs.every(s=>s<=0)) return `High-pass ${netName} (series capacitor${plural}, shunt inductor${plural})`;
+    return `Mixed elements — not a canonical low-pass or high-pass ${netName}`;
   }
 
   // ---------------- network trace (for trajectory + Zin) ----------------
-  function computeNetwork(ZL, Xs, Bp, topology){
+  // Generic N-stage trace: works for the L-network's 2 stages or the Pi/T
+  // networks' 3, sweeping each stage's element from 0 to its final value in
+  // turn so the Smith-chart trajectory shows every intermediate step.
+  function computeNetworkGeneric(ZL, slotsInOrder){
     const N = 220; // fine enough that even a huge series/shunt swing still traces a smooth arc, not a faceted line
-    let pts1=[], pts2=[], Zafter1, Zafter2, order;
-    if(topology === 'seriesFirst'){
-      order = ['series','shunt'];
-      for(let i=0;i<=N;i++){ const t=i/N; pts1.push(gammaFromZ({R:ZL.R, X:ZL.X+t*Xs}, Z0)); }
-      Zafter1 = { R:ZL.R, X:ZL.X+Xs };
-      const Y1 = zToY(Zafter1);
-      for(let i=0;i<=N;i++){ const t=i/N; pts2.push(gammaFromZ(yToZ({G:Y1.G, B:Y1.B+t*Bp}), Z0)); }
-      Zafter2 = yToZ({ G:Y1.G, B:Y1.B+Bp });
-    } else {
-      order = ['shunt','series'];
-      const YL = zToY(ZL);
-      for(let i=0;i<=N;i++){ const t=i/N; pts1.push(gammaFromZ(yToZ({G:YL.G, B:YL.B+t*Bp}), Z0)); }
-      Zafter1 = yToZ({ G:YL.G, B:YL.B+Bp });
-      for(let i=0;i<=N;i++){ const t=i/N; pts2.push(gammaFromZ({R:Zafter1.R, X:Zafter1.X+t*Xs}, Z0)); }
-      Zafter2 = { R:Zafter1.R, X:Zafter1.X+Xs };
-    }
-    return { order, pts1, pts2, Zafter1, Zafter2 };
+    let cur = { R: ZL.R, X: ZL.X };
+    const stages = [];
+    slotsInOrder.forEach(s=>{
+      const pts = [];
+      if(s.kind==='series'){
+        for(let i=0;i<=N;i++){ const t=i/N; pts.push(gammaFromZ({R:cur.R, X:cur.X+t*s.val}, Z0)); }
+        cur = { R:cur.R, X:cur.X+s.val };
+      } else {
+        const Y = zToY(cur);
+        for(let i=0;i<=N;i++){ const t=i/N; pts.push(gammaFromZ(yToZ({G:Y.G, B:Y.B+t*s.val}), Z0)); }
+        cur = yToZ({ G:Y.G, B:Y.B+s.val });
+      }
+      stages.push({ kind:s.kind, pts, Zafter:cur });
+    });
+    return { stages, Zfinal: cur };
   }
 
   // ================= SMITH CHART SVG (static grid built once) =================
@@ -879,12 +1083,17 @@
 
     const colorFor = t => t==='series' ? 'var(--cyan)' : 'var(--amber)';
 
-    dataLayer.appendChild(makePath(pathFromPts(net.pts1), colorFor(net.order[0]), 3, 0.95));
-    dataLayer.appendChild(makePath(pathFromPts(net.pts2), colorFor(net.order[1]), 3, 0.95));
+    net.stages.forEach(s=>{
+      dataLayer.appendChild(makePath(pathFromPts(s.pts), colorFor(s.kind), 3, 0.95));
+    });
 
     dataLayer.appendChild(marker(gammaLoad, 6, 'var(--ink)', 'var(--bg)'));
-    dataLayer.appendChild(marker(net.pts1[net.pts1.length-1], 4.5, colorFor(net.order[0]), 'var(--bg)'));
-    dataLayer.appendChild(marker(net.pts2[net.pts2.length-1], 7, 'var(--amber)', 'var(--bg)', true));
+    for(let i=0;i<net.stages.length-1;i++){
+      const s = net.stages[i];
+      dataLayer.appendChild(marker(s.pts[s.pts.length-1], 4.5, colorFor(s.kind), 'var(--bg)'));
+    }
+    const last = net.stages[net.stages.length-1];
+    dataLayer.appendChild(marker(last.pts[last.pts.length-1], 7, 'var(--amber)', 'var(--bg)', true));
   }
 
   // ================= GAUGE =================
@@ -1072,16 +1281,61 @@
   // ================= RENDER / STATE =================
   function currentPreset(){ return PRESETS.find(p=>p.key===state.presetKey); }
 
+  // Per-slot slider range (the mid element of a Pi/T carries the sum of two
+  // contributions, so it gets extra headroom) and display label.
+  function slotRange(idx){
+    const kind = slotKindAt(idx);
+    if(kind==='X'){
+      if(state.networkType==='pi' && idx===2) return {min:-3000, max:3000, step:4};
+      return {min:-1500, max:1500, step:2};
+    } else if(kind==='B'){
+      if(state.networkType==='t' && idx===2) return {min:-80, max:80, step:0.4};
+      return {min:-40, max:40, step:0.2};
+    }
+    return null;
+  }
+
   function setTopologyUI(){
+    [...networkTypeToggle.querySelectorAll('button')].forEach(b=>{
+      b.classList.toggle('active', b.dataset.nettype === state.networkType);
+    });
     [...topoToggle.querySelectorAll('button')].forEach(b=>{
       b.classList.toggle('active', b.dataset.topo === state.topology);
     });
     [...matchTypeToggle.querySelectorAll('button')].forEach(b=>{
       b.classList.toggle('active', b.dataset.match === state.matchType);
     });
-    flowLine.innerHTML = state.topology==='seriesFirst'
-      ? 'ANTENNA → <span>SERIES X</span> → <b>SHUNT B</b> → TRANSMITTER'
-      : 'ANTENNA → <b>SHUNT B</b> → <span>SERIES X</span> → TRANSMITTER';
+
+    const isL = state.networkType === 'L';
+    signalPathField.hidden = !isL;
+    rvField.hidden = isL;
+    elCField.hidden = isL;
+
+    tunerNetLabel.textContent = state.networkType==='pi' ? 'Pi-network (π)' : state.networkType==='t' ? 'T-network' : 'L-network';
+
+    if(state.networkType==='pi'){
+      flowLine.innerHTML = 'ANTENNA → <b>SHUNT C₁</b> → <span>SERIES L</span> → <b>SHUNT C₂</b> → TRANSMITTER';
+    } else if(state.networkType==='t'){
+      flowLine.innerHTML = 'ANTENNA → <span>SERIES L₁</span> → <b>SHUNT B</b> → <span>SERIES L₂</span> → TRANSMITTER';
+    } else {
+      flowLine.innerHTML = state.topology==='seriesFirst'
+        ? 'ANTENNA → <span>SERIES X</span> → <b>SHUNT B</b> → TRANSMITTER'
+        : 'ANTENNA → <b>SHUNT B</b> → <span>SERIES X</span> → TRANSMITTER';
+    }
+
+    xsName.textContent = state.networkType==='pi' ? 'Shunt element 1 (load side)'
+      : state.networkType==='t' ? 'Series element 1 (load side)'
+      : 'Series element';
+    bpName.textContent = state.networkType==='pi' ? 'Series element (mid)'
+      : state.networkType==='t' ? 'Shunt element (mid)'
+      : 'Shunt element';
+    elCName.textContent = state.networkType==='pi' ? 'Shunt element 2 (source side)' : 'Series element 2 (source side)';
+
+    [ [xsSlider,1], [bpSlider,2], [elCSlider,3] ].forEach(([slider,idx])=>{
+      const r = slotRange(idx);
+      if(!r) return;
+      slider.min = r.min; slider.max = r.max; slider.step = r.step;
+    });
   }
 
   function render(){
@@ -1089,9 +1343,26 @@
     const ZL = loadZ(preset, state.freq);
     const freqHz = state.freq*1e6;
 
-    const net = computeNetwork(ZL, state.Xs, state.Bp, state.topology);
+    // Rv slider bounds depend on the load and network type — recompute so
+    // Auto-Tune (and manual Rv dragging) always land on a solvable value.
+    if(state.networkType!=='L'){
+      const b = rvBoundsFor(ZL);
+      rvSlider.min = b.min.toFixed(2);
+      rvSlider.max = b.max.toFixed(2);
+      if(state.Rv < b.min || state.Rv > b.max) state.Rv = clamp(state.Rv, b.min, b.max);
+      rvSlider.value = state.Rv;
+      const RL = ZL.R, Z0RL = Math.max(ZL.R, Z0);
+      const q = state.networkType==='pi'
+        ? Math.sqrt(Math.max(1e-6, Z0RL/state.Rv - 1))
+        : Math.sqrt(Math.max(1e-6, state.Rv/Math.max(1e-6, Math.min(ZL.R, Z0)) - 1));
+      rvVal.textContent = state.Rv.toFixed(1)+' Ω';
+      rvComp.textContent = `Loaded Q ≈ ${q.toFixed(2)} — ${state.networkType==='pi' ? 'lower Rv narrows bandwidth, raises Q' : 'higher Rv narrows bandwidth, raises Q'}.`;
+    }
+
+    const slotsInOrder = buildSlotsInOrder();
+    const net = computeNetworkGeneric(ZL, slotsInOrder);
     const gammaL = gammaFromZ(ZL, Z0);
-    const ZinGamma = net.pts2[net.pts2.length-1];
+    const ZinGamma = gammaFromZ(net.Zfinal, Z0);
     const rho = Math.min(0.999, Math.hypot(ZinGamma.re, ZinGamma.im));
     const swr = (1+rho)/(1-rho);
 
@@ -1129,15 +1400,26 @@
     zLoadVal.textContent = fmtZ(ZL);
     presetSub.textContent = preset.note;
 
-    xsVal.textContent = (state.Xs>=0?'+':'−')+Math.abs(state.Xs).toFixed(0)+' Ω';
-    bpVal.textContent = (state.Bp>=0?'+':'−')+Math.abs(state.Bp*1000).toFixed(1)+' mS';
-    xsComp.textContent = reactanceLabel(state.Xs, freqHz);
-    bpComp.textContent = susceptanceLabel(state.Bp, freqHz);
-    currentMatchLabel.textContent = 'Currently: ' + classifyMatchType(state.Xs, state.Bp);
+    // per-slot readouts (Ω for series-kind slots, mS-displayed/S-stored for shunt-kind)
+    [ [1,xsSlider,xsVal,xsComp], [2,bpSlider,bpVal,bpComp], [3,elCSlider,elCVal,elCComp] ].forEach(([idx,slider,valEl,compEl])=>{
+      const kind = slotKindAt(idx);
+      if(!kind) return;
+      const raw = idx===1?state.slot1: idx===2?state.slot2: state.slot3;
+      if(kind==='X'){
+        slider.value = raw;
+        valEl.textContent = (raw>=0?'+':'−')+Math.abs(raw).toFixed(0)+' Ω';
+        compEl.textContent = reactanceLabel(raw, freqHz);
+      } else {
+        slider.value = (raw*1000);
+        valEl.textContent = (raw>=0?'+':'−')+Math.abs(raw*1000).toFixed(1)+' mS';
+        compEl.textContent = susceptanceLabel(raw, freqHz);
+      }
+    });
+    currentMatchLabel.textContent = 'Currently: ' + classifyMatchTypeGeneric(slotsInOrder);
 
     const returnLoss = rho>0.0001 ? (-20*Math.log10(rho)) : 60;
     numStrip.innerHTML = `
-      <span class="k">Z<sub>in</sub> (TX sees)</span><span class="v">${fmtZ(net.Zafter2)}</span>
+      <span class="k">Z<sub>in</sub> (TX sees)</span><span class="v">${fmtZ(net.Zfinal)}</span>
       <span class="k">|Γ| ∠ phase</span><span class="v">${rho.toFixed(3)} ∠ ${(Math.atan2(ZinGamma.im,ZinGamma.re)*180/Math.PI).toFixed(0)}°</span>
       <span class="k">Return loss</span><span class="v">${returnLoss>40?'>40':returnLoss.toFixed(1)} dB</span>
       <span class="k">VSWR</span><span class="v">${swr>50?'>50':swr.toFixed(2)} : 1</span>
@@ -1160,16 +1442,20 @@
     render();
   });
 
-  xsSlider.addEventListener('input', ()=>{
-    state.Xs = parseFloat(xsSlider.value);
-    tuneStatus.textContent = '';
-    render();
-  });
-  bpSlider.addEventListener('input', ()=>{
-    state.Bp = parseFloat(bpSlider.value)/1000;
-    tuneStatus.textContent = '';
-    render();
-  });
+  // Reads a slider's current value back into the matching slot, converting
+  // mS -> S for shunt-kind slots.
+  function slotInputHandler(idx, slider){
+    return ()=>{
+      const kind = slotKindAt(idx);
+      const raw = kind==='B' ? parseFloat(slider.value)/1000 : parseFloat(slider.value);
+      if(idx===1) state.slot1 = raw; else if(idx===2) state.slot2 = raw; else state.slot3 = raw;
+      tuneStatus.textContent = '';
+      render();
+    };
+  }
+  xsSlider.addEventListener('input', slotInputHandler(1, xsSlider));
+  bpSlider.addEventListener('input', slotInputHandler(2, bpSlider));
+  elCSlider.addEventListener('input', slotInputHandler(3, elCSlider));
 
   topoToggle.addEventListener('click', (e)=>{
     const btn = e.target.closest('button');
@@ -1179,14 +1465,55 @@
     render();
   });
 
+  networkTypeToggle.addEventListener('click', (e)=>{
+    const btn = e.target.closest('button');
+    if(!btn) return;
+    state.networkType = btn.dataset.nettype;
+    state.slot1 = 0; state.slot2 = 0; state.slot3 = 0;
+    tuneStatus.textContent = '';
+    if(state.networkType!=='L'){
+      const ZL = loadZ(currentPreset(), state.freq);
+      const b = rvBoundsFor(ZL);
+      state.Rv = Math.sqrt(b.min*b.max); // geometric-mean default — a middling loaded Q to start from
+      runAutoTune();
+    } else {
+      setTopologyUI();
+      render();
+    }
+  });
+
+  rvSlider.addEventListener('input', ()=>{
+    state.Rv = parseFloat(rvSlider.value);
+    runAutoTune();
+  });
+
   document.getElementById('bypassBtn').addEventListener('click', ()=>{
-    animateTo(0,0);
+    animateSlots([0,0,0]);
     tuneStatus.textContent = '';
   });
 
   function runAutoTune(){
     const preset = currentPreset();
     const ZL = loadZ(preset, state.freq);
+
+    if(state.networkType==='pi'){
+      const sol = piMatchSolve(ZL, state.Rv, state.matchType);
+      if(!sol){ tuneStatus.textContent = 'No solution at this Rv — try a different virtual resistance.'; setTopologyUI(); return; }
+      tuneStatus.textContent = 'Solved for exact match.';
+      setTopologyUI();
+      animateSlots([sol.B1, sol.Xm, sol.B2]);
+      return;
+    }
+    if(state.networkType==='t'){
+      const sol = tMatchSolve(ZL, state.Rv, state.matchType);
+      if(!sol){ tuneStatus.textContent = 'No solution at this Rv — try a different virtual resistance.'; setTopologyUI(); return; }
+      tuneStatus.textContent = 'Solved for exact match.';
+      setTopologyUI();
+      animateSlots([sol.X1, sol.Bm, sol.X2]);
+      return;
+    }
+
+    // L-network
     let sol = autoTuneSolve(ZL, state.topology, state.matchType);
     let flipped = false;
     if(!sol){
@@ -1203,7 +1530,7 @@
     sol.Bp = clamp(sol.Bp, -0.04, 0.04);
     tuneStatus.textContent = flipped ? 'Switched signal-path order to reach a match.' : 'Solved for exact match.';
     setTopologyUI();
-    animateTo(sol.Xs, sol.Bp*1000);
+    animateSlots([sol.Xs, sol.Bp]);
   }
 
   document.getElementById('autoTuneBtn').addEventListener('click', runAutoTune);
@@ -1216,12 +1543,14 @@
     runAutoTune();
   });
 
-  function animateTo(targetXs, targetBpMs){
+  // Animates slot1/2/3 toward given raw (natural-unit — Ω or Siemens) target
+  // values, whichever slots are active for the current network type.
+  function animateSlots(targets){
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const startXs = state.Xs, startBpMs = state.Bp*1000;
+    const starts = [state.slot1, state.slot2, state.slot3];
+    const ends = [targets[0]||0, targets[1]||0, targets[2]||0];
     if(reduced){
-      state.Xs = targetXs; state.Bp = targetBpMs/1000;
-      xsSlider.value = state.Xs; bpSlider.value = targetBpMs;
+      state.slot1=ends[0]; state.slot2=ends[1]; state.slot3=ends[2];
       render();
       return;
     }
@@ -1231,10 +1560,9 @@
     function frame(now){
       const t = clamp((now-t0)/dur, 0, 1);
       const e = ease(t);
-      state.Xs = startXs + (targetXs-startXs)*e;
-      state.Bp = (startBpMs + (targetBpMs-startBpMs)*e)/1000;
-      xsSlider.value = state.Xs.toFixed(1);
-      bpSlider.value = (state.Bp*1000).toFixed(2);
+      state.slot1 = starts[0] + (ends[0]-starts[0])*e;
+      state.slot2 = starts[1] + (ends[1]-starts[1])*e;
+      state.slot3 = starts[2] + (ends[2]-starts[2])*e;
       render();
       if(t<1) requestAnimationFrame(frame);
     }
@@ -1248,10 +1576,8 @@
     let sol = autoTuneSolve(ZL0, state.topology, state.matchType);
     if(!sol){ state.topology = 'shuntFirst'; sol = autoTuneSolve(ZL0, state.topology, state.matchType); }
     if(sol){
-      state.Xs = clamp(sol.Xs, -1500, 1500);
-      state.Bp = clamp(sol.Bp, -0.04, 0.04);
-      xsSlider.value = state.Xs;
-      bpSlider.value = (state.Bp*1000).toFixed(2);
+      state.slot1 = clamp(sol.Xs, -1500, 1500);
+      state.slot2 = clamp(sol.Bp, -0.04, 0.04);
     }
   })();
 
