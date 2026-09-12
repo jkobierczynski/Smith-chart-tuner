@@ -9,6 +9,14 @@ transmission-line math, not canned animations.
 Open `index.html` in any modern browser. There is nothing to build or
 install; the whole tool is one static HTML file.
 
+## Screenshots
+
+![Smith chart tuner](Smith_chart_tuner.jpg)
+
+## Made with Claude
+
+Made using Claude Sonnet 5 High
+
 ## What it shows
 
 - **SWR meter** — an analog cross-needle-style gauge reading VSWR from the
