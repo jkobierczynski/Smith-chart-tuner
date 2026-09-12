@@ -1,7 +1,8 @@
 # Smith Chart Tuner
 
 An interactive, single-page simulation of an antenna tuner: drag the series
-and shunt elements of an L-network (or hit Auto-Tune) and watch the effect
+and shunt elements of an **L-network**, **Pi-network (π)**, or
+  **T-network** (or hit Auto-Tune) and watch the effect
 ripple through an analog SWR meter, a live Smith chart, and a pair of
 forward/reflected waveform scopes — all driven by the same underlying
 transmission-line math, not canned animations.
