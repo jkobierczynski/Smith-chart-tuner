@@ -38,7 +38,7 @@
   a{ color:var(--cyan); }
 
   .wrap{
-    max-width:1680px;
+    max-width:1920px;
     margin:0 auto;
     display:flex;
     flex-direction:column;
@@ -101,7 +101,7 @@
   /* ---------- layout: draggable dashboard grid ---------- */
   .dashboard{
     display:grid;
-    grid-template-columns:repeat(auto-fill, minmax(320px,1fr));
+    grid-template-columns:repeat(auto-fill, minmax(340px,1fr));
     grid-auto-flow:dense;
     gap:22px;
     align-items:start;
@@ -473,6 +473,15 @@
             <div class="flowline" id="flowLine"></div>
           </div>
 
+          <div class="field">
+            <div class="field-top"><span class="name">Auto-Tune target</span></div>
+            <div class="toggle" id="matchTypeToggle">
+              <button data-match="lowpass">Low-pass (L → C)</button>
+              <button data-match="highpass">High-pass (C → L)</button>
+            </div>
+            <span class="subval">Every L-match has two solutions — pick which one Auto-Tune solves for.</span>
+          </div>
+
           <label class="field">
             <div class="field-top"><span class="name">Series element</span><span class="val" id="xsVal">0 Ω</span></div>
             <input type="range" id="xsSlider" min="-1500" max="1500" step="2" value="0">
@@ -490,6 +499,7 @@
             <button class="btn ghost" id="bypassBtn">Bypass (0, 0)</button>
           </div>
           <div class="status-note" id="tuneStatus"></div>
+          <div class="status-note" id="currentMatchLabel"></div>
         </div>
       </div>
 
@@ -590,6 +600,7 @@
     presetKey:'dipole',
     freq:7.15,
     topology:'seriesFirst',
+    matchType:'lowpass', // which Auto-Tune root to solve for: 'lowpass' (series L, shunt C) or 'highpass' (series C, shunt L)
     Xs:0,
     Bp:0, // siemens
   };
@@ -607,8 +618,10 @@
   const xsComp = document.getElementById('xsComp');
   const bpComp = document.getElementById('bpComp');
   const topoToggle = document.getElementById('topoToggle');
+  const matchTypeToggle = document.getElementById('matchTypeToggle');
   const flowLine = document.getElementById('flowLine');
   const tuneStatus = document.getElementById('tuneStatus');
+  const currentMatchLabel = document.getElementById('currentMatchLabel');
   const zLoadVal = document.getElementById('zLoadVal');
   const numStrip = document.getElementById('numStrip');
   const swrNum = document.getElementById('swrNum');
@@ -660,35 +673,49 @@
   }
 
   // ---------------- auto-tune solver ----------------
-  function autoTuneSolve(ZL, topology){
+  // The match equation is quadratic, so for a given topology there are always
+  // two valid roots — a low-pass realization (series inductor, shunt
+  // capacitor) and a high-pass one (series capacitor, shunt inductor), the
+  // classic two-solution ambiguity of any L-network. matchType picks which
+  // root to return; the sign convention below makes +root the low-pass one
+  // and -root the high-pass one for both topologies.
+  function autoTuneSolve(ZL, topology, matchType){
     const RL = ZL.R, XL = ZL.X;
+    const wantHighpass = matchType === 'highpass';
     if(topology === 'shuntFirst'){
       const D = RL*RL + XL*XL || 1e-9;
       const GL = RL/D, BL = -XL/D;
       const disc = GL/Z0 - GL*GL; // GL <= 1/Z0 required — this topology suits high-Z loads
       if(disc < 0) return null;
       const root = Math.sqrt(disc);
-      const cands = [root,-root].map(Bprime=>{
-        const Bp = Bprime - BL;
-        const Dd = GL*GL + Bprime*Bprime || 1e-9;
-        const X1 = -Bprime/Dd;
-        const Xs = -X1;
-        return { Xs, Bp, cost: Math.abs(Xs) + Math.abs(Bp)*Z0 };
-      }).sort((a,b)=>a.cost-b.cost);
-      return { Xs:cands[0].Xs, Bp:cands[0].Bp };
+      const Bprime = wantHighpass ? -root : root;
+      const Bp = Bprime - BL;
+      const Dd = GL*GL + Bprime*Bprime || 1e-9;
+      const X1 = -Bprime/Dd;
+      const Xs = -X1;
+      return { Xs, Bp };
     } else {
       const disc = Z0*RL - RL*RL;
       if(disc < 0) return null;
       const root = Math.sqrt(disc);
-      const cands = [root,-root].map(X1=>{
-        const Xs = X1 - XL;
-        const Dd = RL*RL + X1*X1 || 1e-9;
-        const B1 = -X1/Dd;
-        const Bp = -B1;
-        return { Xs, Bp, cost: Math.abs(Xs) + Math.abs(Bp)*Z0 };
-      }).sort((a,b)=>a.cost-b.cost);
-      return { Xs:cands[0].Xs, Bp:cands[0].Bp };
+      const X1 = wantHighpass ? -root : root;
+      const Xs = X1 - XL;
+      const Dd = RL*RL + X1*X1 || 1e-9;
+      const B1 = -X1/Dd;
+      const Bp = -B1;
+      return { Xs, Bp };
     }
+  }
+
+  // Classifies whatever (Xs, Bp) is currently dialed in — manually or via
+  // Auto-Tune — as a canonical low-pass / high-pass L-match, or neither.
+  function classifyMatchType(Xs, Bp){
+    const xsSign = Math.abs(Xs) < 0.5 ? 0 : Math.sign(Xs);
+    const bpSign = Math.abs(Bp) < 1e-5 ? 0 : Math.sign(Bp);
+    if(xsSign===0 && bpSign===0) return 'Bypassed — no reactive elements in the circuit';
+    if(xsSign>=0 && bpSign>=0) return 'Low-pass L-match (series inductor, shunt capacitor)';
+    if(xsSign<=0 && bpSign<=0) return 'High-pass L-match (series capacitor, shunt inductor)';
+    return 'Mixed elements — not a canonical low-pass or high-pass L-match';
   }
 
   // ---------------- network trace (for trajectory + Zin) ----------------
@@ -1049,6 +1076,9 @@
     [...topoToggle.querySelectorAll('button')].forEach(b=>{
       b.classList.toggle('active', b.dataset.topo === state.topology);
     });
+    [...matchTypeToggle.querySelectorAll('button')].forEach(b=>{
+      b.classList.toggle('active', b.dataset.match === state.matchType);
+    });
     flowLine.innerHTML = state.topology==='seriesFirst'
       ? 'ANTENNA → <span>SERIES X</span> → <b>SHUNT B</b> → TRANSMITTER'
       : 'ANTENNA → <b>SHUNT B</b> → <span>SERIES X</span> → TRANSMITTER';
@@ -1103,6 +1133,7 @@
     bpVal.textContent = (state.Bp>=0?'+':'−')+Math.abs(state.Bp*1000).toFixed(1)+' mS';
     xsComp.textContent = reactanceLabel(state.Xs, freqHz);
     bpComp.textContent = susceptanceLabel(state.Bp, freqHz);
+    currentMatchLabel.textContent = 'Currently: ' + classifyMatchType(state.Xs, state.Bp);
 
     const returnLoss = rho>0.0001 ? (-20*Math.log10(rho)) : 60;
     numStrip.innerHTML = `
@@ -1153,21 +1184,36 @@
     tuneStatus.textContent = '';
   });
 
-  document.getElementById('autoTuneBtn').addEventListener('click', ()=>{
+  function runAutoTune(){
     const preset = currentPreset();
     const ZL = loadZ(preset, state.freq);
-    let sol = autoTuneSolve(ZL, state.topology);
+    let sol = autoTuneSolve(ZL, state.topology, state.matchType);
     let flipped = false;
     if(!sol){
       state.topology = state.topology==='seriesFirst' ? 'shuntFirst' : 'seriesFirst';
-      sol = autoTuneSolve(ZL, state.topology);
+      sol = autoTuneSolve(ZL, state.topology, state.matchType);
       flipped = true;
     }
-    if(!sol){ tuneStatus.textContent = 'No solution found for this load.'; return; }
+    if(!sol){
+      tuneStatus.textContent = 'No '+(state.matchType==='highpass'?'high-pass':'low-pass')+' solution found for this load.';
+      setTopologyUI();
+      return;
+    }
     sol.Xs = clamp(sol.Xs, -1500, 1500);
     sol.Bp = clamp(sol.Bp, -0.04, 0.04);
     tuneStatus.textContent = flipped ? 'Switched signal-path order to reach a match.' : 'Solved for exact match.';
+    setTopologyUI();
     animateTo(sol.Xs, sol.Bp*1000);
+  }
+
+  document.getElementById('autoTuneBtn').addEventListener('click', runAutoTune);
+
+  matchTypeToggle.addEventListener('click', (e)=>{
+    const btn = e.target.closest('button');
+    if(!btn) return;
+    state.matchType = btn.dataset.match;
+    setTopologyUI();
+    runAutoTune();
   });
 
   function animateTo(targetXs, targetBpMs){
@@ -1199,8 +1245,8 @@
   // the tool does at a glance instead of opening on a plain bypassed (high-SWR) state.
   (function initTuned(){
     const ZL0 = loadZ(currentPreset(), state.freq);
-    let sol = autoTuneSolve(ZL0, state.topology);
-    if(!sol){ state.topology = 'shuntFirst'; sol = autoTuneSolve(ZL0, state.topology); }
+    let sol = autoTuneSolve(ZL0, state.topology, state.matchType);
+    if(!sol){ state.topology = 'shuntFirst'; sol = autoTuneSolve(ZL0, state.topology, state.matchType); }
     if(sol){
       state.Xs = clamp(sol.Xs, -1500, 1500);
       state.Bp = clamp(sol.Bp, -0.04, 0.04);

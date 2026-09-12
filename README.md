@@ -36,6 +36,12 @@ Made using Claude Sonnet 5 High
   capacitor value at the current frequency. An **Auto-Tune** button solves
   the exact L-match analytically (flipping the signal-path order on its
   own if the one you've selected has no solution for the current load).
+  Every L-match has two valid root solutions, so an **Auto-Tune target**
+  toggle lets you choose which one to solve for — low-pass (series
+  inductor, shunt capacitor) or high-pass (series capacitor, shunt
+  inductor) — and a live label classifies whatever combination is
+  currently dialed in, including by hand, as low-pass, high-pass,
+  bypassed, or a mixed combination that isn't a canonical L-match at all.
 - **Smith chart** — a normalized (Z₀ = 50 Ω) impedance chart with true
   circular grid geometry. It plots the antenna's raw reflection
   coefficient, the trajectory each tuning element sweeps (series moves
@@ -47,9 +53,10 @@ Made using Claude Sonnet 5 High
   phase, at the antenna (before the tuner) and at the transmitter (after
   it) — making it visible that the tuner only fixes what the transmitter
   sees, not the standing waves on the feedline itself.
-- **Movable layout** — every panel can be dragged by its header into any
-  order; the arrangement is remembered locally (via `localStorage`) and a
-  "Reset layout" button restores the default.
+- **Movable layout** — a wide, five-column dashboard grid; every panel can
+  be dragged by its header into any order, the arrangement is remembered
+  locally (via `localStorage`), and a "Reset layout" button restores the
+  default.
 
 ## How it works
 
