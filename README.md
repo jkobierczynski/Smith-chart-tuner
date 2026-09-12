@@ -30,6 +30,18 @@ Made using Claude Sonnet 5 High
   dipole, a short mobile whip, an end-fed long wire, and a flat 50 Ω
   reference load) whose feedpoint impedance shifts with frequency using a
   simplified resonance model.
+- **Feedline** — insert a length of transmission line between the antenna
+  and the tuner: pick a cable (ideal lossless 50 Ω, RG-58, RG-213, LMR-400,
+  or 450 Ω ladder line) and a length, and watch the impedance the tuner
+  actually sees rotate around the Smith chart as the line's electrical
+  length changes, spiraling slowly inward if the cable has loss. A line
+  whose own characteristic impedance differs from the chart's 50 Ω
+  normalization (like ladder line) traces an off-center loop rather than a
+  simple circle — this is real transmission-line math (exact complex
+  reflection-coefficient rotation and decay), not a canned animation, so it
+  correctly reproduces that effect. Readouts show the electrical length (in
+  degrees and wavelengths), the matched-line loss in dB, and the resulting
+  impedance at the tuner's input.
 - **Antenna tuner** — choose an **L-network**, **Pi-network (π)**, or
   **T-network** topology. The L-network offers two tuning controls, a
   series reactance and a shunt susceptance, in either signal-path order
@@ -53,19 +65,31 @@ Made using Claude Sonnet 5 High
   Light, Nord, and Dracula; your choice is remembered locally.
 - **Smith chart** — a normalized (Z₀ = 50 Ω) impedance chart with true
   circular grid geometry. It plots the antenna's raw reflection
-  coefficient, the trajectory each tuning element sweeps (series moves
-  along a constant-resistance circle, shunt moves along a
-  constant-conductance circle), and the impedance the transmitter actually
-  sees.
-- **Forward & reflected waves** — two oscilloscope-style panels comparing
+  coefficient, the feedline's rotation (and, with loss, inward spiral), the
+  trajectory each tuning element sweeps (series moves along a
+  constant-resistance circle, shunt moves along a constant-conductance
+  circle), and the impedance the transmitter actually sees.
+- **Match bandwidth** — a VSWR-vs-frequency sweep around the currently
+  tuned frequency, with today's dialed-in series/shunt elements frozen as
+  real inductor and capacitor values (not fixed ohms) and re-solved at each
+  nearby frequency — showing what actually happens if you transmit
+  off-frequency without retuning. It reports the usable bandwidth (VSWR ≤
+  2) and makes the loaded-Q trade-off on the Pi- and T-networks' R<sub>v</sub>
+  control tangible: a sharper match (lower R<sub>v</sub> on a Pi-network,
+  higher R<sub>v</sub> on a T) narrows this curve, a gentler one widens it.
+- **Forward & reflected waves** — three oscilloscope-style panels comparing
   the sent and reflected sine waves, with their real amplitude ratio and
-  phase, at the antenna (before the tuner) and at the transmitter (after
-  it) — making it visible that the tuner only fixes what the transmitter
-  sees, not the standing waves on the feedline itself.
-- **Movable layout** — a wide, five-column dashboard grid; every panel can
-  be dragged by its header into any order, the arrangement is remembered
-  locally (via `localStorage`), and a "Reset layout" button restores the
-  default.
+  phase, at the antenna (before the feedline), at the tuner (after the
+  feedline), and at the transmitter (after the tuner) — making it visible
+  that the tuner only fixes what the transmitter sees, not the standing
+  waves on the feedline or at the antenna itself.
+- **Movable, masonry-packed layout** — a wide dashboard grid (up to six
+  columns on a large enough or zoomed-out window) where every panel can be
+  dragged by its header into any order. Panels pack like masonry: a short
+  panel tucks into whatever space a taller neighbor leaves free in its
+  column instead of every panel in a row being forced to the height of the
+  tallest one. The arrangement is remembered locally (via `localStorage`),
+  and a "Reset layout" button restores the default.
 
 ## How it works
 
@@ -77,6 +101,19 @@ relationships, computed live in plain JavaScript:
 - The Smith chart grid (constant-resistance circles, constant-reactance
   arcs) is drawn from its exact center/radius in the Γ-plane, not
   approximated, so it stays perfectly round at any zoom level.
+- The feedline is modeled with the exact lossy transmission-line equation
+  Γ_in = Γ_L · e^(−2γl), γ = α + jβ, using genuine complex-number
+  arithmetic — so a line's own characteristic impedance (like 450 Ω ladder
+  line) can differ from the chart's 50 Ω reference, correctly producing an
+  off-center Möbius-transformed loop rather than a simple circle. Coax
+  loss is scaled with frequency roughly as √f, matching real skin-effect
+  behavior at HF.
+- The match-bandwidth sweep takes the currently dialed series/shunt values,
+  converts them to an equivalent inductance or capacitance at the center
+  frequency, and re-derives each element's reactance or susceptance at
+  every swept frequency before re-solving the network — so the curve
+  reflects how a real fixed-value inductor or capacitor actually behaves
+  off-frequency, not just a fixed-ohms approximation.
 - The L-network auto-tune solver matches a complex load to a real target
   resistance analytically (the standard "Q-based" L-match formulas),
   rather than searching numerically. The Pi- and T-network solvers reuse
@@ -85,7 +122,8 @@ relationships, computed live in plain JavaScript:
   three-element network decomposes into two L-sections.
 
 Feedpoint impedances for the antenna presets are simplified, illustrative
-curves for teaching purposes — not measured antenna data.
+curves for teaching purposes — not measured antenna data. Cable loss
+figures are similarly illustrative, not a manufacturer's spec.
 
 ## Files
 

@@ -21,6 +21,7 @@
     --good:          #4ade80;
     --warn:          #fbbf24;
     --crit:          #f9695a;
+    --violet:        #b388f9;
   }
 
   /* ---------- alternate color themes (selectable, persisted) ---------- */
@@ -28,26 +29,26 @@
     --bg:#002b36; --panel:#073642; --panel-raised:#0b4351; --well:#012730;
     --line:#0a4655; --line-strong:#155667; --ink:#93a1a1; --ink-secondary:#839496;
     --ink-muted:#586e75; --amber:#b58900; --amber-dim:#7b5d00; --cyan:#2aa198;
-    --cyan-dim:#1c6b64; --good:#859900; --warn:#cb4b16; --crit:#dc322f;
+    --cyan-dim:#1c6b64; --good:#859900; --warn:#cb4b16; --crit:#dc322f; --violet:#6c71c4;
   }
   :root[data-theme="solarized-light"]{
     --bg:#fdf6e3; --panel:#eee8d5; --panel-raised:#f7f1e0; --well:#e4dcc4;
     --line:#d7cfb4; --line-strong:#c1b795; --ink:#073642; --ink-secondary:#586e75;
     --ink-muted:#839496; --amber:#b58900; --amber-dim:#ded1a0; --cyan:#2aa198;
-    --cyan-dim:#bfe0dc; --good:#859900; --warn:#cb4b16; --crit:#dc322f;
+    --cyan-dim:#bfe0dc; --good:#859900; --warn:#cb4b16; --crit:#dc322f; --violet:#5b5bb0;
     color-scheme: light;
   }
   :root[data-theme="nord"]{
     --bg:#2e3440; --panel:#3b4252; --panel-raised:#434c5e; --well:#272c36;
     --line:#434c5e; --line-strong:#4c566a; --ink:#eceff4; --ink-secondary:#d8dee9;
     --ink-muted:#8391ad; --amber:#d08770; --amber-dim:#6b4a3d; --cyan:#88c0d0;
-    --cyan-dim:#3f5761; --good:#a3be8c; --warn:#ebcb8b; --crit:#bf616a;
+    --cyan-dim:#3f5761; --good:#a3be8c; --warn:#ebcb8b; --crit:#bf616a; --violet:#b48ead;
   }
   :root[data-theme="dracula"]{
     --bg:#282a36; --panel:#343746; --panel-raised:#3d4052; --well:#21222c;
     --line:#3a3d4d; --line-strong:#44475a; --ink:#f8f8f2; --ink-secondary:#bfc7d5;
     --ink-muted:#6272a4; --amber:#ffb86c; --amber-dim:#7a5a35; --cyan:#8be9fd;
-    --cyan-dim:#3d5b63; --good:#50fa7b; --warn:#f1fa8c; --crit:#ff5555;
+    --cyan-dim:#3d5b63; --good:#50fa7b; --warn:#f1fa8c; --crit:#ff5555; --violet:#bd93f9;
   }
 
   *{ box-sizing:border-box; }
@@ -139,11 +140,19 @@
   }
   .theme-picker select{ padding:7px 10px; font-size:12.5px; }
 
-  /* ---------- layout: draggable dashboard grid ---------- */
+  /* ---------- layout: draggable, masonry-packed dashboard grid ---------- */
+  /* minmax(280px,…) lets the grid reach 6 columns on a wide-enough (or
+     zoomed-out) viewport instead of capping at 5; grid-auto-rows defines a
+     fine-grained row unit that JS uses (see layoutMasonry()) to give each
+     panel a row-span matching its own content height. Combined with
+     grid-auto-flow:dense, that lets a short panel tuck into whatever space
+     a taller neighbor leaves free in its column, instead of every panel in
+     a row being forced to the height of the tallest one. */
   .dashboard{
     display:grid;
-    grid-template-columns:repeat(auto-fill, minmax(340px,1fr));
+    grid-template-columns:repeat(auto-fill, minmax(280px,1fr));
     grid-auto-flow:dense;
+    grid-auto-rows:8px;
     gap:22px;
     align-items:start;
   }
@@ -375,10 +384,11 @@
   /* ---------- oscilloscope panels ---------- */
   .scopes{
     display:grid;
-    grid-template-columns:1fr 1fr;
+    grid-template-columns:repeat(3, 1fr);
     gap:16px;
   }
-  @media (max-width:640px){ .scopes{ grid-template-columns:1fr; } }
+  @media (max-width:900px){ .scopes{ grid-template-columns:1fr 1fr; } }
+  @media (max-width:520px){ .scopes{ grid-template-columns:1fr; } }
   .scope-panel{
     background:var(--well);
     border:1px solid var(--line);
@@ -525,6 +535,26 @@
         </div>
       </div>
 
+      <div class="module panel" data-panel="feedline">
+        <div class="module__head"><span><span class="grip" aria-hidden="true"></span>Feedline</span></div>
+        <div class="stack">
+          <label class="field">
+            <div class="field-top"><span class="name">Cable type</span></div>
+            <select id="cableSelect"></select>
+            <span class="subval" id="cableSub"></span>
+          </label>
+          <label class="field">
+            <div class="field-top"><span class="name">Length</span><span class="val" id="lineLenVal">100 ft</span></div>
+            <input type="range" id="lineLenSlider" min="0" max="300" step="5" value="100">
+          </label>
+          <div class="strip">
+            <span class="k">Electrical length</span><span class="v" id="lineElecVal">—</span>
+            <span class="k">Matched-line loss</span><span class="v" id="lineLossVal">—</span>
+            <span class="k">Z at tuner input</span><span class="v" id="lineZTunerVal">—</span>
+          </div>
+        </div>
+      </div>
+
       <div class="module panel" data-panel="tuner">
         <div class="module__head"><span><span class="grip" aria-hidden="true"></span>Antenna Tuner</span><b id="tunerNetLabel">L-network</b></div>
         <div class="stack">
@@ -595,19 +625,37 @@
       </div>
       <div class="legend">
         <span class="item"><span class="dot-sw" style="background:var(--ink)"></span>Antenna (load)</span>
+        <span class="item"><span class="swatch" style="background:var(--violet)"></span>Feedline — rotates (and, with loss, spirals in)</span>
         <span class="item"><span class="swatch" style="background:var(--cyan)"></span>Series step — moves along constant R</span>
         <span class="item"><span class="swatch" style="background:var(--amber)"></span>Shunt step — moves along constant G</span>
         <span class="item"><span class="dot-sw" style="background:var(--amber); box-shadow:0 0 6px var(--amber);"></span>What the transmitter sees</span>
       </div>
     </div>
 
+    <div class="module panel span2" data-panel="bandwidth">
+      <div class="module__head"><span><span class="grip" aria-hidden="true"></span>Match Bandwidth</span><b>Tuner held fixed, frequency swept</b></div>
+      <div class="chart-svg-wrap" style="max-width:100%;">
+        <svg id="bwSvg" viewBox="0 0 640 260" role="img" aria-label="VSWR versus frequency around the tuned point, with the tuner's elements held fixed"></svg>
+      </div>
+      <div class="strip">
+        <span class="k">Usable bandwidth (VSWR ≤ 2)</span><span class="v" id="bwVal">—</span>
+        <span class="k">Sweep span shown</span><span class="v" id="bwSpanVal">—</span>
+      </div>
+      <p class="foot-note">This freezes today's dialed-in inductor/capacitor values and re-solves the match at nearby frequencies — it's what actually happens if you transmit off-frequency without retuning. A higher loaded Q (lower R<sub>v</sub> on a Pi-network, higher R<sub>v</sub> on a T) matches more sharply but narrows this curve.</p>
+    </div>
+
     <div class="module panel span2" data-panel="waves">
-      <div class="module__head"><span><span class="grip" aria-hidden="true"></span>Forward &amp; Reflected Waves</span><b>Same instant, two reference planes</b></div>
+      <div class="module__head"><span><span class="grip" aria-hidden="true"></span>Forward &amp; Reflected Waves</span><b>Same instant, three reference planes</b></div>
       <div class="scopes">
         <div class="scope-panel">
-          <div class="scope-label">At the antenna <span class="scope-sub">— before the tuner</span></div>
+          <div class="scope-label">At the antenna <span class="scope-sub">— before the feedline</span></div>
           <svg class="scope-svg" id="scopeLoad" viewBox="0 0 420 150" role="img" aria-label="Forward and reflected waveforms at the antenna"></svg>
           <div class="scope-cap" id="scopeLoadCap"></div>
+        </div>
+        <div class="scope-panel">
+          <div class="scope-label">At the tuner <span class="scope-sub">— after the feedline</span></div>
+          <svg class="scope-svg" id="scopeLine" viewBox="0 0 420 150" role="img" aria-label="Forward and reflected waveforms at the tuner input"></svg>
+          <div class="scope-cap" id="scopeLineCap"></div>
         </div>
         <div class="scope-panel">
           <div class="scope-label">At the transmitter <span class="scope-sub">— after the tuner</span></div>
@@ -626,13 +674,13 @@
       <div class="module__head"><span><span class="grip" aria-hidden="true"></span>Explainer</span><b>Physical meaning</b></div>
       <h2>What the chart is actually showing</h2>
       <p>The Smith chart is a polar plot of the complex reflection coefficient <strong>Γ = (Z − Z₀) / (Z + Z₀)</strong>, redrawn with a grid of impedance instead of raw numbers. Every point inside the outer rim <em>is</em> an impedance: the curved grid lines are circles of constant resistance and arcs of constant reactance, so reading a point's position off the grid tells you R and X directly. The rim itself is <strong>|Γ| = 1</strong> — total reflection, as seen by a dead short or a wide-open circuit. The exact center is <strong>Γ = 0</strong>: the load equals Z₀, nothing reflects, and the meter reads a flat 1.0.</p>
-      <p>The two tuner controls are two different ways of moving across that grid. A <strong>series reactance</strong> only changes X and leaves R untouched, so it slides your point along one of the cyan <strong>constant-resistance</strong> circles. A <strong>shunt susceptance</strong> only changes conductance, so — in the impedance chart shown here — it slides you along one of the amber <strong>constant-conductance</strong> circles instead. Chain one of each, in either order, and you can reach the center from almost any starting point: that's the whole reason a two-element L-network can match nearly any real-world antenna.</p>
-      <p class="foot-note">Feedpoint impedances for the presets are simplified, illustrative curves — not measured antenna data.</p>
+      <p>Three things move you across that grid, and they look different. A length of <strong>feedline</strong> doesn't change what the antenna's impedance <em>is</em> — it only changes what it <em>looks like</em> from the other end, by rotating your point around the chart's center at constant radius (or, with real cable loss, spiralling slowly inward as energy leaks away each trip down and back). A <strong>series reactance</strong> only changes X and leaves R untouched, so it slides your point along one of the cyan <strong>constant-resistance</strong> circles. A <strong>shunt susceptance</strong> only changes conductance, so it slides you along one of the amber <strong>constant-conductance</strong> circles instead. Chain a series and a shunt step, in either order, and you can reach the center from almost any starting point: that's the whole reason an L-, Pi-, or T-network can match nearly any real-world antenna.</p>
+      <p class="foot-note">Feedpoint impedances for the presets are simplified, illustrative curves — not measured antenna data. Cable loss figures are similarly illustrative, not a manufacturer's spec.</p>
     </div>
 
     <div class="module panel callout" data-panel="callout">
       <div class="module__head"><span><span class="grip" aria-hidden="true"></span>Field Note</span><span>Feedline caveat</span></div>
-      <p class="callout-text">The tuner sits at the transmitter end of the cable. Tuning it only forces the impedance <em>at that end</em> back to 50 Ω, which is what the SWR meter is reading. The mismatch — and the standing waves — between the tuner and the antenna itself are completely unchanged; a lossy line still burns extra power in those standing waves no matter how nicely this meter reads. An antenna tuner protects your transmitter, it doesn't repair your antenna.</p>
+      <p class="callout-text">The tuner sits at the transmitter end of the cable. Tuning it only forces the impedance <em>at that end</em> back to 50 Ω, which is what the SWR meter is reading. The mismatch — and the standing waves — between the tuner and the antenna itself are completely unchanged; watch the "At the antenna" scope and the SWR at the feedline's antenna end stay stubbornly high even at a perfect 1.00 transmitter reading. A lossy line still burns extra power in those standing waves no matter how nicely this meter reads. An antenna tuner protects your transmitter, it doesn't repair your antenna.</p>
     </div>
 
   </div>
@@ -680,10 +728,61 @@
     return { R, X };
   }
 
+  // ---------------- complex arithmetic (for the feedline transform) ----------------
+  function cadd(a,b){ return { re:a.re+b.re, im:a.im+b.im }; }
+  function csub(a,b){ return { re:a.re-b.re, im:a.im-b.im }; }
+  function cmul(a,b){ return { re:a.re*b.re-a.im*b.im, im:a.re*b.im+a.im*b.re }; }
+  function cdiv(a,b){ const d=b.re*b.re+b.im*b.im || 1e-12; return { re:(a.re*b.re+a.im*b.im)/d, im:(a.im*b.re-a.re*b.im)/d }; }
+
+  // ---------------- feedline (cable presets + lossy line transform) ----------------
+  // Loss figures are illustrative (roughly matching published attenuation charts at
+  // 10 MHz), scaled with frequency the way real coax loss actually behaves —
+  // dominated by skin effect at HF, so loss grows roughly with sqrt(f).
+  const CABLES = [
+    { key:'ideal',  name:'Ideal lossless 50 Ω line', Z0:50,  vf:1.00, lossPer100ftAt10MHz:0.00, note:'No loss, no impedance step — isolates the pure rotation effect.' },
+    { key:'rg58',   name:'RG-58 (50 Ω coax)',        Z0:50,  vf:0.66, lossPer100ftAt10MHz:1.90, note:'Thin, lossy, common for short low-power runs.' },
+    { key:'rg213',  name:'RG-213 (50 Ω coax)',        Z0:50,  vf:0.66, lossPer100ftAt10MHz:0.80, note:'Thicker foam/solid coax; the usual base-station cable.' },
+    { key:'lmr400', name:'LMR-400 (50 Ω coax)',       Z0:50,  vf:0.85, lossPer100ftAt10MHz:0.40, note:'Low-loss coax for longer runs.' },
+    { key:'ladder', name:'450 Ω ladder line',         Z0:450, vf:0.90, lossPer100ftAt10MHz:0.04, note:'Balanced open-wire line — very low loss, big impedance step (the classic reason to need a tuner).' },
+  ];
+  function currentCable(){ return CABLES.find(c=>c.key===state.cableKey) || CABLES[0]; }
+
+  function lineParamsAt(cable, lengthFt, freqHz){
+    const c = 299792458; // m/s
+    const lengthM = lengthFt * 0.3048;
+    const lambda = cable.vf * c / Math.max(freqHz,1);
+    const betaL = 2*Math.PI*lengthM/lambda; // one-way electrical length, radians
+    const freqMHz = freqHz/1e6;
+    const lossDb100ft = cable.lossPer100ftAt10MHz * Math.sqrt(Math.max(freqMHz,0.01)/10);
+    const matchedLossDb = lossDb100ft * (lengthFt/100); // one-way matched-line loss, dB
+    const decay = Math.pow(10, -matchedLossDb/20); // one-way voltage decay factor
+    return { betaL, matchedLossDb, decay, lengthM, lambda };
+  }
+
+  // Transforms a load impedance ZL through `lengthFt` of `cable` at `freqHz`,
+  // returning the impedance seen looking INTO the line from the tuner end.
+  // Uses the exact Γ_in = Γ_L · e^(-2γl) relation (relative to the cable's own
+  // Z0, which may differ from the system's 50 Ω, e.g. 450 Ω ladder line).
+  function lineTransform(ZL, cable, lengthFt, freqHz){
+    const p = lineParamsAt(cable, lengthFt, freqHz);
+    const Z0line = { re:cable.Z0, im:0 };
+    const ZLc = { re:ZL.R, im:ZL.X };
+    const GammaL = cdiv(csub(ZLc,Z0line), cadd(ZLc,Z0line));
+    const mag = p.decay*p.decay;
+    const ang = -2*p.betaL;
+    const rot = { re:mag*Math.cos(ang), im:mag*Math.sin(ang) };
+    const GammaIn = cmul(GammaL, rot);
+    const one = { re:1, im:0 };
+    const Zin = cmul(Z0line, cdiv(cadd(one,GammaIn), csub(one,GammaIn)));
+    return { R:Zin.re, X:Zin.im, params:p, GammaL, GammaIn };
+  }
+
   // ---------------- state ----------------
   const state = {
     presetKey:'dipole',
     freq:7.15,
+    cableKey:'ideal',
+    lineLenFt:0,
     networkType:'L', // 'L' | 'pi' | 't'
     topology:'seriesFirst', // L-network only: which element the signal meets first
     matchType:'lowpass', // which Auto-Tune root to solve for: 'lowpass' (series L, shunt C) or 'highpass' (series C, shunt L)
@@ -738,9 +837,21 @@
   const refVal = document.getElementById('refVal');
   const refFill = document.getElementById('refFill');
   const scopeLoadSvg = document.getElementById('scopeLoad');
+  const scopeLineSvg = document.getElementById('scopeLine');
   const scopeInSvg = document.getElementById('scopeIn');
   const scopeLoadCap = document.getElementById('scopeLoadCap');
+  const scopeLineCap = document.getElementById('scopeLineCap');
   const scopeInCap = document.getElementById('scopeInCap');
+  const cableSelect = document.getElementById('cableSelect');
+  const cableSub = document.getElementById('cableSub');
+  const lineLenSlider = document.getElementById('lineLenSlider');
+  const lineLenVal = document.getElementById('lineLenVal');
+  const lineElecVal = document.getElementById('lineElecVal');
+  const lineLossVal = document.getElementById('lineLossVal');
+  const lineZTunerVal = document.getElementById('lineZTunerVal');
+  const bwSvg = document.getElementById('bwSvg');
+  const bwVal = document.getElementById('bwVal');
+  const bwSpanVal = document.getElementById('bwSpanVal');
 
   PRESETS.forEach(p=>{
     const o = document.createElement('option');
@@ -748,6 +859,13 @@
     presetSelect.appendChild(o);
   });
   presetSelect.value = state.presetKey;
+
+  CABLES.forEach(c=>{
+    const o = document.createElement('option');
+    o.value = c.key; o.textContent = c.name;
+    cableSelect.appendChild(o);
+  });
+  cableSelect.value = state.cableKey;
 
   // ---------------- theme (persisted, applied inline in <head> to avoid flash) ----------------
   const THEME_KEY = 'smithChartTuner.theme.v1';
@@ -792,6 +910,57 @@
     if(B>0){ const C = B/(2*Math.PI*freqHz); return `${fmtC(C)} capacitor  (+j${(B*1000).toFixed(1)} mS)`; }
     const L = 1/(2*Math.PI*freqHz*Math.abs(B));
     return `${fmtL(L)} inductor  (−j${Math.abs(B*1000).toFixed(1)} mS)`;
+  }
+
+  // ---------------- fixed-component snapshots (for the bandwidth sweep) ----------------
+  // A dialed-in slider value is a reactance/susceptance AT the current
+  // frequency; a real inductor or capacitor is fixed in Henries/Farads and its
+  // reactance changes as frequency changes. These convert one way at the
+  // sweep's center frequency, then back the other way at each swept frequency,
+  // so the sweep reflects what physically happens if you transmit off-frequency
+  // without touching the tuner.
+  function seriesComponentAt(X, freqHz){
+    if(Math.abs(X) < 0.5) return null;
+    return X>0 ? { kind:'L', val:X/(2*Math.PI*freqHz) } : { kind:'C', val:1/(2*Math.PI*freqHz*Math.abs(X)) };
+  }
+  function seriesReactanceFrom(comp, freqHz){
+    if(!comp) return 0;
+    return comp.kind==='L' ? 2*Math.PI*freqHz*comp.val : -1/(2*Math.PI*freqHz*comp.val);
+  }
+  function shuntComponentAt(B, freqHz){
+    if(Math.abs(B) < 1e-6) return null;
+    return B>0 ? { kind:'C', val:B/(2*Math.PI*freqHz) } : { kind:'L', val:1/(2*Math.PI*freqHz*Math.abs(B)) };
+  }
+  function shuntSusceptanceFrom(comp, freqHz){
+    if(!comp) return 0;
+    return comp.kind==='C' ? 2*Math.PI*freqHz*comp.val : -1/(2*Math.PI*freqHz*comp.val);
+  }
+  // Snapshots the currently-dialed slots as fixed L/C components (at state.freq).
+  function snapshotSlotComponents(){
+    return [1,2,3].map(idx=>{
+      const kind = slotKindAt(idx);
+      if(!kind) return null;
+      const raw = idx===1?state.slot1: idx===2?state.slot2: state.slot3;
+      const freqHz = state.freq*1e6;
+      return kind==='X' ? { physKind:'X', comp:seriesComponentAt(raw, freqHz) } : { physKind:'B', comp:shuntComponentAt(raw, freqHz) };
+    });
+  }
+  // Rebuilds slotsInOrder at an arbitrary sweep frequency from a component snapshot.
+  function slotsInOrderAtFreq(snapshot, freqHz){
+    const vals = snapshot.map(s=>{
+      if(!s) return 0;
+      return s.physKind==='X' ? seriesReactanceFrom(s.comp, freqHz) : shuntSusceptanceFrom(s.comp, freqHz);
+    });
+    const stateAtFreq = { slot1:vals[0], slot2:vals[1], slot3:vals[2] };
+    if(state.networkType==='pi'){
+      return [ {kind:'shunt', val:stateAtFreq.slot1}, {kind:'series', val:stateAtFreq.slot2}, {kind:'shunt', val:stateAtFreq.slot3} ];
+    }
+    if(state.networkType==='t'){
+      return [ {kind:'series', val:stateAtFreq.slot1}, {kind:'shunt', val:stateAtFreq.slot2}, {kind:'series', val:stateAtFreq.slot3} ];
+    }
+    return state.topology==='seriesFirst'
+      ? [ {kind:'series', val:stateAtFreq.slot1}, {kind:'shunt', val:stateAtFreq.slot2} ]
+      : [ {kind:'shunt', val:stateAtFreq.slot2}, {kind:'series', val:stateAtFreq.slot1} ];
   }
 
   // ---------------- auto-tune solver ----------------
@@ -944,6 +1113,33 @@
     return { stages, Zfinal: cur };
   }
 
+  // Fast final-impedance-only version (no trajectory sampling) — used by the
+  // bandwidth sweep, which needs just the end result at ~100 frequencies, not
+  // a smooth arc at each one.
+  function finalZAfterStages(ZL, slotsInOrder){
+    let cur = { R: ZL.R, X: ZL.X };
+    slotsInOrder.forEach(s=>{
+      if(s.kind==='series'){ cur = { R:cur.R, X:cur.X+s.val }; }
+      else { const Y = zToY(cur); cur = yToZ({ G:Y.G, B:Y.B+s.val }); }
+    });
+    return cur;
+  }
+
+  // Feedline trace, as a "stage" shaped like computeNetworkGeneric's — sweeps
+  // length from 0 to lengthFt so the chart shows the actual rotation (or, with
+  // loss, inward spiral) rather than jumping straight to the far end.
+  function computeLineStage(ZLantenna, cable, lengthFt, freqHz){
+    const N = 220;
+    const pts = [];
+    for(let i=0;i<=N;i++){
+      const t = i/N;
+      const Z = lineTransform(ZLantenna, cable, lengthFt*t, freqHz);
+      pts.push(gammaFromZ({R:Z.R, X:Z.X}, Z0));
+    }
+    const Zafter = lineTransform(ZLantenna, cable, lengthFt, freqHz);
+    return { kind:'line', pts, Zafter:{R:Zafter.R, X:Zafter.X} };
+  }
+
   // ================= SMITH CHART SVG (static grid built once) =================
   const SM = { cx:320, cy:320, R:270 };
   const smithSvg = document.getElementById('smithSvg');
@@ -1081,7 +1277,7 @@
       smithSvg.appendChild(defs);
     }
 
-    const colorFor = t => t==='series' ? 'var(--cyan)' : 'var(--amber)';
+    const colorFor = t => t==='series' ? 'var(--cyan)' : t==='shunt' ? 'var(--amber)' : 'var(--violet)';
 
     net.stages.forEach(s=>{
       dataLayer.appendChild(makePath(pathFromPts(s.pts), colorFor(s.kind), 3, 0.95));
@@ -1179,6 +1375,103 @@
     return `|Γ| ${rho.toFixed(2)} ∠ ${phaseDeg.toFixed(0)}°  ·  combined swing ${vmin.toFixed(2)}–${vmax.toFixed(2)}× the forward wave`;
   }
 
+  // ================= MATCH BANDWIDTH SWEEP =================
+  const BW = { w:640, h:260, padL:34, padR:14, padT:10, padB:26 };
+  const BW_SWR_TICKS = [1,1.5,2,3,5,10];
+  const BW_SWR_MAX = 10;
+  const BW_POINTS = 121;
+  const BW_SPAN_FRAC = 0.18; // sweep ±18% around the center frequency
+
+  function bwX(freqMHz, f0, f1){ return BW.padL + (BW.w-BW.padL-BW.padR) * clamp((freqMHz-f0)/(f1-f0), 0, 1); }
+  function bwY(swr){
+    const s = clamp(swr, 1, BW_SWR_MAX);
+    // sqrt spacing spreads out the low-SWR region (where the interesting shape is) without a log axis
+    const t = (Math.sqrt(s)-1)/(Math.sqrt(BW_SWR_MAX)-1);
+    return BW.h-BW.padB - t*(BW.h-BW.padB-BW.padT);
+  }
+
+  function computeBandwidthSweep(centerFreqMHz, cable, lengthFt, snapshot){
+    const f0 = Math.max(1.8, centerFreqMHz*(1-BW_SPAN_FRAC));
+    const f1 = Math.min(30, centerFreqMHz*(1+BW_SPAN_FRAC));
+    const preset = currentPreset();
+    const pts = [];
+    for(let i=0;i<BW_POINTS;i++){
+      const fMHz = f0 + (f1-f0)*i/(BW_POINTS-1);
+      const freqHz = fMHz*1e6;
+      const ZLa = loadZ(preset, fMHz);
+      const ZLt = lineTransform(ZLa, cable, lengthFt, freqHz);
+      const slots = slotsInOrderAtFreq(snapshot, freqHz);
+      const Zf = finalZAfterStages({R:ZLt.R, X:ZLt.X}, slots);
+      const g = gammaFromZ(Zf, Z0);
+      const rho = Math.min(0.999, Math.hypot(g.re, g.im));
+      const swr = (1+rho)/(1-rho);
+      pts.push({ fMHz, swr });
+    }
+    return { f0, f1, pts };
+  }
+
+  // Linear-interpolated frequencies where the swept SWR curve crosses `target`,
+  // closest to the center on each side — used for the SWR<=2 bandwidth readout.
+  function bwCrossings(sweep, centerFreqMHz, target){
+    const pts = sweep.pts;
+    let lo = null, hi = null;
+    for(let i=0;i<pts.length-1;i++){
+      const a=pts[i], b=pts[i+1];
+      if((a.swr-target)*(b.swr-target) <= 0 && a.swr!==b.swr){
+        const t = (target-a.swr)/(b.swr-a.swr);
+        const f = a.fMHz + (b.fMHz-a.fMHz)*t;
+        if(f<=centerFreqMHz && (lo===null || f>lo)) lo=f;
+        if(f>=centerFreqMHz && (hi===null || f<hi)) hi=f;
+      }
+    }
+    return { lo, hi };
+  }
+
+  function renderBandwidth(sweep, centerFreqMHz){
+    bwSvg.innerHTML = '';
+    const { f0, f1, pts } = sweep;
+
+    // gridlines + SWR tick labels
+    BW_SWR_TICKS.forEach(s=>{
+      const y = bwY(s);
+      bwSvg.appendChild(makePath(`${BW.padL},${y.toFixed(1)} L ${BW.w-BW.padR},${y.toFixed(1)}`, 'var(--line)', 1, s===2?0.9:0.5, s===2?undefined:'3,4'));
+      bwSvg.appendChild(makeText(BW.padL-8, y+3, s.toString(), {size:10, fill:'var(--ink-muted)', anchor:'end'}));
+    });
+    // frequency axis ticks (5 across)
+    for(let i=0;i<=4;i++){
+      const f = f0 + (f1-f0)*i/4;
+      const x = bwX(f, f0, f1);
+      bwSvg.appendChild(makeText(x, BW.h-6, f.toFixed(2), {size:10, fill:'var(--ink-muted)'}));
+    }
+
+    // usable-bandwidth shading (SWR <= 2)
+    const cross = bwCrossings(sweep, centerFreqMHz, 2);
+    if(cross.lo!==null && cross.hi!==null){
+      const x1 = bwX(cross.lo, f0, f1), x2 = bwX(cross.hi, f0, f1);
+      const rect = document.createElementNS(NS,'rect');
+      rect.setAttribute('x', x1); rect.setAttribute('y', BW.padT);
+      rect.setAttribute('width', Math.max(0,x2-x1)); rect.setAttribute('height', BW.h-BW.padT-BW.padB);
+      rect.setAttribute('fill', 'var(--good)'); rect.setAttribute('opacity', 0.10);
+      bwSvg.appendChild(rect);
+    }
+
+    // the curve itself
+    const d = pts.map(p=>`${bwX(p.fMHz,f0,f1).toFixed(2)},${bwY(p.swr).toFixed(2)}`).join(' L ');
+    bwSvg.appendChild(makePath(d, 'var(--amber)', 2.6, 0.95));
+
+    // current-frequency marker
+    const cx = bwX(centerFreqMHz, f0, f1);
+    bwSvg.appendChild(makePath(`${cx.toFixed(2)},${BW.padT} L ${cx.toFixed(2)},${BW.h-BW.padB}`, 'var(--cyan)', 1.4, 0.85, '4,3'));
+
+    if(cross.lo!==null && cross.hi!==null){
+      const spanKHz = (cross.hi-cross.lo)*1000;
+      bwVal.textContent = `${spanKHz.toFixed(0)} kHz (${cross.lo.toFixed(3)}–${cross.hi.toFixed(3)} MHz)`;
+    } else {
+      bwVal.textContent = pts.every(p=>p.swr<=2) ? 'Wider than the span shown' : 'None within the span shown';
+    }
+    bwSpanVal.textContent = `${f0.toFixed(2)}–${f1.toFixed(2)} MHz (±${(BW_SPAN_FRAC*100).toFixed(0)}%)`;
+  }
+
   // ================= DRAG-TO-REORDER PANELS =================
   // Panels live in one CSS grid; dragging a header just moves that panel's DOM
   // node before/after another one, so the grid itself reflows around it. Order
@@ -1186,7 +1479,7 @@
   // read back by anyone else.
   const dashboard = document.getElementById('dashboard');
   const PANEL_ORDER_KEY = 'smithChartTuner.panelOrder.v1';
-  const DEFAULT_PANEL_ORDER = ['meter','antenna','tuner','chart','waves','explain','callout'];
+  const DEFAULT_PANEL_ORDER = ['meter','antenna','feedline','tuner','chart','bandwidth','waves','explain','callout'];
 
   function applyPanelOrder(order){
     order.forEach(id=>{
@@ -1278,6 +1571,46 @@
     applyPanelOrder(DEFAULT_PANEL_ORDER);
   });
 
+  // ================= MASONRY-STYLE VERTICAL PACKING =================
+  // CSS Grid rows are normally as tall as their tallest occupant, so a short
+  // panel next to a tall one leaves dead space instead of letting a later
+  // panel flow into it. The fix (the standard CSS-Grid "masonry" trick):
+  // give the grid a tiny fixed row height (see .dashboard's grid-auto-rows
+  // above) and, per panel, set grid-row-end to a span computed from that
+  // panel's own measured height — then grid-auto-flow:dense will slot later
+  // panels into whatever fractional-row gap a shorter neighbor leaves open.
+  function layoutMasonry(){
+    const cs = getComputedStyle(dashboard);
+    const rowH = parseFloat(cs.gridAutoRows) || 8;
+    const rowGap = parseFloat(cs.rowGap) || parseFloat(cs.gap) || 0;
+    [...dashboard.children].forEach(panel=>{
+      const h = panel.getBoundingClientRect().height;
+      if(h <= 0) return; // hidden panel — leave its previous span alone
+      const span = Math.max(1, Math.ceil((h + rowGap) / (rowH + rowGap)));
+      panel.style.gridRowEnd = `span ${span}`;
+    });
+  }
+  let masonryFrame = null;
+  function scheduleMasonry(){
+    if(masonryFrame) return;
+    masonryFrame = requestAnimationFrame(()=>{
+      masonryFrame = null;
+      layoutMasonry();
+    });
+  }
+  if(typeof ResizeObserver !== 'undefined'){
+    // Fires once per observed panel immediately, then again on any height
+    // change — content updates, theme/font changes, toggled fields,
+    // viewport-driven text reflow, drag-reorder — with no need to hook
+    // every place that might change a panel's height.
+    const panelResizeObserver = new ResizeObserver(scheduleMasonry);
+    [...dashboard.children].forEach(panel=>panelResizeObserver.observe(panel));
+  } else {
+    window.addEventListener('resize', scheduleMasonry);
+    scheduleMasonry();
+  }
+  window.addEventListener('resize', scheduleMasonry);
+
   // ================= RENDER / STATE =================
   function currentPreset(){ return PRESETS.find(p=>p.key===state.presetKey); }
 
@@ -1338,10 +1671,29 @@
     });
   }
 
+  // Antenna impedance transformed through the feedline at the given frequency
+  // (MHz) — this is what the tuner actually sees as its load.
+  function zlAtTuner(freqMHz){
+    const ZLantenna = loadZ(currentPreset(), freqMHz);
+    const Zt = lineTransform(ZLantenna, currentCable(), state.lineLenFt, freqMHz*1e6);
+    return { R:Zt.R, X:Zt.X };
+  }
+
   function render(){
     const preset = currentPreset();
-    const ZL = loadZ(preset, state.freq);
+    const ZLantenna = loadZ(preset, state.freq);
+    const cable = currentCable();
     const freqHz = state.freq*1e6;
+    const lineResult = lineTransform(ZLantenna, cable, state.lineLenFt, freqHz);
+    const ZL = { R:lineResult.R, X:lineResult.X }; // impedance the tuner sees, after the feedline
+
+    // feedline readouts
+    cableSub.textContent = cable.note;
+    lineLenVal.textContent = state.lineLenFt.toFixed(0)+' ft';
+    const wavelengths = lineResult.params.betaL/(2*Math.PI);
+    lineElecVal.textContent = `${(lineResult.params.betaL*180/Math.PI).toFixed(0)}° (${wavelengths.toFixed(2)}λ)`;
+    lineLossVal.textContent = state.lineLenFt<0.5 ? '0.0 dB' : lineResult.params.matchedLossDb.toFixed(2)+' dB';
+    lineZTunerVal.textContent = fmtZ(ZL);
 
     // Rv slider bounds depend on the load and network type — recompute so
     // Auto-Tune (and manual Rv dragging) always land on a solvable value.
@@ -1351,7 +1703,7 @@
       rvSlider.max = b.max.toFixed(2);
       if(state.Rv < b.min || state.Rv > b.max) state.Rv = clamp(state.Rv, b.min, b.max);
       rvSlider.value = state.Rv;
-      const RL = ZL.R, Z0RL = Math.max(ZL.R, Z0);
+      const Z0RL = Math.max(ZL.R, Z0);
       const q = state.networkType==='pi'
         ? Math.sqrt(Math.max(1e-6, Z0RL/state.Rv - 1))
         : Math.sqrt(Math.max(1e-6, state.Rv/Math.max(1e-6, Math.min(ZL.R, Z0)) - 1));
@@ -1361,7 +1713,8 @@
 
     const slotsInOrder = buildSlotsInOrder();
     const net = computeNetworkGeneric(ZL, slotsInOrder);
-    const gammaL = gammaFromZ(ZL, Z0);
+    const gammaAntenna = gammaFromZ(ZLantenna, Z0);
+    const gammaAtTuner = gammaFromZ(ZL, Z0);
     const ZinGamma = gammaFromZ(net.Zfinal, Z0);
     const rho = Math.min(0.999, Math.hypot(ZinGamma.re, ZinGamma.im));
     const swr = (1+rho)/(1-rho);
@@ -1382,22 +1735,38 @@
     refFill.style.width = clamp((refl/fwd)*100,0,100).toFixed(1)+'%';
     refFill.style.background = statusColor;
 
-    // chart
-    renderChart(gammaL, net);
+    // chart — prepend the feedline's own trace (rotation, or spiral with loss)
+    // ahead of the tuner's stages, so the whole antenna-to-transmitter journey
+    // shows on one chart.
+    let fullStages = net.stages;
+    if(state.lineLenFt >= 0.5){
+      const lineStage = computeLineStage(ZLantenna, cable, state.lineLenFt, freqHz);
+      fullStages = [lineStage, ...net.stages];
+    }
+    renderChart(gammaAntenna, { stages: fullStages, Zfinal: net.Zfinal });
 
-    // oscilloscope panels: same instant, two reference planes
-    const rhoLoad = Math.hypot(gammaL.re, gammaL.im);
-    const phaseLoad = Math.atan2(gammaL.im, gammaL.re);
+    // oscilloscope panels: same instant, three reference planes
+    const rhoLoad = Math.hypot(gammaAntenna.re, gammaAntenna.im);
+    const phaseLoad = Math.atan2(gammaAntenna.im, gammaAntenna.re);
+    const rhoTuner = Math.hypot(gammaAtTuner.re, gammaAtTuner.im);
+    const phaseTuner = Math.atan2(gammaAtTuner.im, gammaAtTuner.re);
     const phaseIn = Math.atan2(ZinGamma.im, ZinGamma.re);
     renderScope(scopeLoadSvg, rhoLoad, phaseLoad);
     scopeLoadCap.textContent = fmtScopeCap(rhoLoad, phaseLoad);
+    renderScope(scopeLineSvg, rhoTuner, phaseTuner);
+    scopeLineCap.textContent = fmtScopeCap(rhoTuner, phaseTuner);
     renderScope(scopeInSvg, rho, phaseIn);
     scopeInCap.textContent = fmtScopeCap(rho, phaseIn);
+
+    // bandwidth sweep (tuner elements frozen as fixed L/C at the current frequency)
+    const snapshot = snapshotSlotComponents();
+    const sweep = computeBandwidthSweep(state.freq, cable, state.lineLenFt, snapshot);
+    renderBandwidth(sweep, state.freq);
 
     // labels
     freqVal.textContent = state.freq.toFixed(3)+' MHz';
     freqHeadLabel.textContent = state.freq.toFixed(3)+' MHz';
-    zLoadVal.textContent = fmtZ(ZL);
+    zLoadVal.textContent = fmtZ(ZLantenna);
     presetSub.textContent = preset.note;
 
     // per-slot readouts (Ω for series-kind slots, mS-displayed/S-stored for shunt-kind)
@@ -1442,6 +1811,15 @@
     render();
   });
 
+  cableSelect.addEventListener('change', ()=>{
+    state.cableKey = cableSelect.value;
+    render();
+  });
+  lineLenSlider.addEventListener('input', ()=>{
+    state.lineLenFt = parseFloat(lineLenSlider.value);
+    render();
+  });
+
   // Reads a slider's current value back into the matching slot, converting
   // mS -> S for shunt-kind slots.
   function slotInputHandler(idx, slider){
@@ -1472,7 +1850,7 @@
     state.slot1 = 0; state.slot2 = 0; state.slot3 = 0;
     tuneStatus.textContent = '';
     if(state.networkType!=='L'){
-      const ZL = loadZ(currentPreset(), state.freq);
+      const ZL = zlAtTuner(state.freq);
       const b = rvBoundsFor(ZL);
       state.Rv = Math.sqrt(b.min*b.max); // geometric-mean default — a middling loaded Q to start from
       runAutoTune();
@@ -1493,8 +1871,7 @@
   });
 
   function runAutoTune(){
-    const preset = currentPreset();
-    const ZL = loadZ(preset, state.freq);
+    const ZL = zlAtTuner(state.freq);
 
     if(state.networkType==='pi'){
       const sol = piMatchSolve(ZL, state.Rv, state.matchType);
@@ -1572,7 +1949,7 @@
   // Open already matched, so the meter, chart and scopes all demonstrate what
   // the tool does at a glance instead of opening on a plain bypassed (high-SWR) state.
   (function initTuned(){
-    const ZL0 = loadZ(currentPreset(), state.freq);
+    const ZL0 = zlAtTuner(state.freq);
     let sol = autoTuneSolve(ZL0, state.topology, state.matchType);
     if(!sol){ state.topology = 'shuntFirst'; sol = autoTuneSolve(ZL0, state.topology, state.matchType); }
     if(sol){
